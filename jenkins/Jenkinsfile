@@ -1,4 +1,3 @@
-
 #!groovy
 
 def deleteContainer = "${job_name}${BUILD_NUMBER}_delete"
