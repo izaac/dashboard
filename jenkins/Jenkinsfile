@@ -1,12 +1,7 @@
 #!groovy
 
-def deleteContainer = "${job_name}${BUILD_NUMBER}_delete"
-def deletePytestOptions = "-k test_delete_rancher_server"
-def deleteResultsOut = "delete-results.xml"
-def testsDir = "tests/v3_api/"
 def e2eContainerName = "cye2e-${job_name}${env.BUILD_NUMBER}"
 def rancherContainerName = "rancher-${job_name}${env.BUILD_NUMBER}"
-def envFile = ".env"
 def DEPENDENCIES_INSTALLED = false
 
 def branch = "master"
