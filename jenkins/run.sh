@@ -1,11 +1,14 @@
 #!/bin/bash
 
+set -e
 set -x
 
 CYPRESS_DOCKER_TYPE="${CYPRESS_DOCKER_TYPE:-included}"
 CYPRESS_DOCKER_VERSION="${CYPRESS_DOCKER_VERSION:-12.3.0}"
-RANCHER_CONTAINER_NAME="${RANCHER_CONTAINER_NAME:-rancher}"
 CYPRESS_CONTAINER_NAME="${CYPRESS_CONTAINER_NAME:-cye2e}"
+RANCHER_CONTAINER_NAME="${RANCHER_CONTAINER_NAME:-rancher}"
+RANCHER_HOST_PORT_SECURE="${RANCHER_HOST_PORT:-4443}"
+RANCHER_HOST_PORT="${RANCHER_HOST_PORT:-8887}"
 
 export TEST_INSTRUMENT=true
 ./scripts/build-e2e
@@ -16,7 +19,7 @@ sudo chown -R $(whoami) .
 DASHBOARD_DIST=${DIR}/dist
 EMBER_DIST=${DIR}/dist_ember
 
-docker run  --privileged -d -p 80:80 -p 443:443 \
+docker run  --privileged -d -p "${RANCHER_HOST_PORT}:80" -p "${RANCHER_HOST_PORT_SECURE}:443" \
   -v ${DASHBOARD_DIST}:/usr/share/rancher/ui-dashboard/dashboard \
   -v ${EMBER_DIST}:/usr/share/rancher/ui \
   -e CATTLE_BOOTSTRAP_PASSWORD=password \
@@ -61,6 +64,7 @@ TEST_USERNAME=admin
 TEST_PASSWORD=password
 
 docker run --network container:rancher --name "${CYPRESS_CONTAINER_NAME}" -t \
+  -e CYPRESS_VIDEO=false \
   -e CYPRESS_VIEWPORT_WIDTH=1280 \
   -e CYPRESS_VIEWPORT_HEIGHT=720 \
   -e TEST_BASE_URL=${TEST_BASE_URL} \
