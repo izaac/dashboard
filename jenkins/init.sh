@@ -9,7 +9,7 @@ case "${OS}" in
     Darwin*)    MACHINE=darwin-amd64;;
 esac
 
-CORRAL_PATH="."
+CORRAL_PATH="${HOME}/bin"
 CORRAL="${CORRAL_PATH}/corral"
 CORRAL_VERSION="${CORRAL_VERSION:-1.1.1}"
 CORRAL_DOWNLOAD_URL="https://github.com/rancherlabs/corral/releases/download/"
@@ -23,22 +23,6 @@ BRANCH="${BRANCH:-master}"
 if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
 curl -L --silent -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
 chmod +x "${CORRAL}"
-
-
-# CORRAL_PATH="${HOME}/bin"
-# CORRAL="${CORRAL_PATH}/corral"
-# CORRAL_VERSION="${CORRAL_VERSION:-1.1.1}"
-# CORRAL_DOWNLOAD_URL="https://github.com/rancherlabs/corral/releases/download/"
-# CORRAL_DOWNLOAD_BIN="${CORRAL_DOWNLOAD_URL}v${CORRAL_VERSION}/corral-${CORRAL_VERSION}-${MACHINE}"
-# PATH="${CORRAL_PATH}:${PATH}"
-# CORRAL_PACKAGES_REPO="${CORRAL_PACKAGES_REPO:-https://github.com/rancherlabs/corral-packages.git}"
-# CORRAL_PACKAGES_BRANCH="${CORRAL_PACKAGES_BRANCH:-main}"
-# REPO="${REPO:-https://github.com/rancher/dashboard.git}"
-# BRANCH="${BRANCH:-master}"
-
-# if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
-# curl -L --silent -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
-# chmod +x "${CORRAL}"
 
 if [[ ! -d "${HOME}/.ssh" ]]; then mkdir -p "${HOME}/.ssh"; fi
 PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
