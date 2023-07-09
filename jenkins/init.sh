@@ -33,11 +33,13 @@ if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
 curl -L --silent -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
 chmod +x "${CORRAL}"
 curl -L --silent -o "${GO_PKG_FILENAME}" "${GO_DL_PACKAGE}"
-
 tar -C "${HOME}" -xzf "${GO_PKG_FILENAME}"
+
 ls -al "${HOME}"
-export PATH=$PATH:"${HOME}/go/bin:${CORRAL_PATH}"
+export PATH=$PATH:"${HOME}/go/bin:${HOME}/bin"
+
 go version
+corral version
 
 if [[ ! -d "${HOME}/.ssh" ]]; then mkdir -p "${HOME}/.ssh"; fi
 PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
