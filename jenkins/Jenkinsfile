@@ -1,8 +1,5 @@
 #!groovy
 
-def e2eContainerName = "cye2e-${job_name}${env.BUILD_NUMBER}"
-def rancherContainerName = "rancher-${job_name}${env.BUILD_NUMBER}"
-def DEPENDENCIES_INSTALLED = false
 
 def branch = "master"
 if ("${env.branch}" != "null" && "${env.branch}" != "") {
@@ -29,27 +26,12 @@ node {
 
         try {
           try {
-            stage('Setup Dependencies') {
-                sh "jenkins/setup.sh"
-                DEPENDENCIES_INSTALLED = true
+            stage('Debug Stage') {
+                sh "which ssh"
+                sh "ls -al $HOME"
+                sh "ls -al $HOME/.ssh"
             }
           } catch (err) {
-              DEPENDENCIES_INSTALLED = false
-              echo "Error: " + err
-              currentBuild.result = 'FAILURE'
-              error()
-          }
-          try {
-            stage('Run E2E Tests') {
-              environment {
-                RANCHER_CONTAINER_NAME = rancherContainerName
-                CYPRESS_CONTAINER_NAME = e2eContainerName
-              }
-              sh "jenkins/run.sh"
-              TEST_IMAGES_CREATED = true
-             }
-          } catch (err) {
-              TEST_IMAGES_CREATED = false
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
               error()
@@ -57,35 +39,7 @@ node {
              
         } catch(err) {
           echo "Error: " + err
-        } finally {
-          stage('Teardown Images') {
-            try {
-              if (DEPENDENCIES_INSTALLED && TEST_IMAGES_CREATED) {
-                sh "docker stop ${RANCHER_CONTAINER_NAME}"
-                sh "docker stop ${CYPRESS_CONTAINER_NAME}"
-                sh "docker rm ${RANCHER_CONTAINER_NAME}"
-                sh "docker rm ${CYPRESS_CONTAINER_NAME}"
-              }
-              else {
-                echo "Rancher server and Cypress not deployed, skipping delete."
-              }
-            } catch(err) {
-              echo "Error: " + err
-              currentBuild.result = 'FAILURE'
-            }
-          }
-
-          stage('Test Report') {
-            step([$class: 'JUnitResultArchiver', testResults: '**/junit.xml'])
-          }
-
-          stage('Cleanup') {
-            environment {
-                RANCHER_CONTAINER_NAME = rancherContainerName
-                CYPRESS_CONTAINER_NAME = e2eContainerName
-            }
-            sh "jenkins/cleanup.sh"
-          }
+        }
         }
       }
     }
