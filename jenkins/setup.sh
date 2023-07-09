@@ -2,6 +2,9 @@
 shopt -s extglob
 set -x
 
+echo "======== MEMORY ======"
+free
+
 NODEJS_VERSION="${NODEJS_VERSION:-v14.19.1}"
 NODEJS_DOWNLOAD_URL="https://nodejs.org/dist"
 NODEJS_FILE="node-${NODEJS_VERSION}-linux-x64.tar.xz"
