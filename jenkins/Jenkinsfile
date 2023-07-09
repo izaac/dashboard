@@ -16,6 +16,8 @@ node {
       params.each {
         paramsMap << "$it.key=$it.value"
       }
+      withCredentials([ string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')]) {
       withEnv(paramsMap) {
         stage('Checkout') {
           deleteDir()
@@ -26,68 +28,51 @@ node {
                     userRemoteConfigs: scm.userRemoteConfigs
                   ])
         }
-
         try {
           try {
+            stage('Initialize') {
+                sh 'jenkins/init.sh'
+                sh 'jenkins/generate_env.sh'
+            }
             stage('Setup Dependencies') {
-                sh "jenkins/setup.sh"
-                DEPENDENCIES_INSTALLED = true
+                sh "jenkins/sshexec.sh \"jenkins/setup.sh\""
             }
           } catch (err) {
-              DEPENDENCIES_INSTALLED = false
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
               error()
           }
           try {
             stage('Run E2E Tests') {
-              environment {
-                RANCHER_CONTAINER_NAME = rancherContainerName
-                CYPRESS_CONTAINER_NAME = e2eContainerName
-              }
-              sh "jenkins/run.sh"
-              TEST_IMAGES_CREATED = true
+              sh "jenkins/sshexec.sh \"jenkins/run.sh\""
              }
           } catch (err) {
-              TEST_IMAGES_CREATED = false
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
               error()
-          }
-             
+          } 
         } catch(err) {
           echo "Error: " + err
         } finally {
-          stage('Teardown Images') {
+          try {
+            stage('Grab Results') {
+                sh "jenkins/scpget.sh dashboard/junit.xml"
+            }
+          }
+          stage('Clean Test Environment') {
             try {
-              if (DEPENDENCIES_INSTALLED && TEST_IMAGES_CREATED) {
-                sh "docker stop ${RANCHER_CONTAINER_NAME}"
-                sh "docker stop ${CYPRESS_CONTAINER_NAME}"
-                sh "docker rm ${RANCHER_CONTAINER_NAME}"
-                sh "docker rm ${CYPRESS_CONTAINER_NAME}"
-              }
-              else {
-                echo "Rancher server and Cypress not deployed, skipping delete."
-              }
+                sh "corral delete ci"
             } catch(err) {
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
             }
           }
-
           stage('Test Report') {
             step([$class: 'JUnitResultArchiver', testResults: '**/junit.xml'])
           }
-
-          stage('Cleanup') {
-            environment {
-                RANCHER_CONTAINER_NAME = rancherContainerName
-                CYPRESS_CONTAINER_NAME = e2eContainerName
-            }
-            sh "jenkins/cleanup.sh"
-          }
         }
       }
+     }
     }
   }  
 }
