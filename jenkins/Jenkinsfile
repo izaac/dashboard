@@ -56,7 +56,7 @@ node {
                 sh 'jenkins/generate_env.sh'
             }
             stage('Setup Dependencies') {
-                sh "jenkins/sshexec.sh \"jenkins/setup.sh\""
+                sh "jenkins/sshexec.sh \"dashboard/jenkins/setup.sh\""
             }
           } catch (err) {
               echo "Error: " + err
@@ -65,7 +65,7 @@ node {
           }
           try {
             stage('Run E2E Tests') {
-              sh "jenkins/sshexec.sh \"jenkins/run.sh\""
+              sh "jenkins/sshexec.sh \"dashboard/jenkins/run.sh\""
              }
           } catch (err) {
               echo "Error: " + err
@@ -86,7 +86,7 @@ node {
           }
           stage('Clean Test Environment') {
             try {
-                sh "corral delete ci"
+                sh "./corral delete ci"
             } catch(err) {
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
