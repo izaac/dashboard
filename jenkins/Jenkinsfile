@@ -9,6 +9,14 @@ if ("${env.branch}" != "null" && "${env.branch}" != "") {
   branch = "${env.branch}"
 }
 
+if ("${env.CORRAL_PACKAGES_REPO}" != "null" && "${env.CORRAL_PACKAGES_REPO}" != "") {
+      corralRepo = "${env.CORRAL_PACKAGES_REPO}"
+}
+
+if ("${env.CORRAL_PACKAGES_BRANCH}" != "null" && "${env.CORRAL_PACKAGES_BRANCH}" != "") {
+      corralBranch = "${env.CORRAL_PACKAGES_BRANCH}"
+}
+
 node {
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg':1]) {
     withFolderProperties {
@@ -27,9 +35,18 @@ node {
                     extensions: scm.extensions + [[$class: 'CleanCheckout']],
                     userRemoteConfigs: scm.userRemoteConfigs
                   ])
+          dir('./corral-packages') {
+                checkout([
+                      $class: 'GitSCM',
+                      branches: [[name: "*/${corralBranch}"]],
+                      extensions: scm.extensions + [[$class: 'CleanCheckout']],
+                      userRemoteConfigs: [[url: corralRepo]]
+                    ])
+              }
         }
         try {
           try {
+            sh "ls -al"
             stage('Initialize') {
                 sh 'jenkins/init.sh'
                 sh 'jenkins/generate_env.sh'
