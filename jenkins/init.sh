@@ -39,7 +39,6 @@ ls -al "${HOME}"
 export PATH=$PATH:"${HOME}/go/bin:${HOME}/bin"
 
 go version
-./corral version
 
 if [[ ! -d "${HOME}/.ssh" ]]; then mkdir -p "${HOME}/.ssh"; fi
 PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
