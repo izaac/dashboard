@@ -47,7 +47,6 @@ node {
             if (ciConfigContents != null) {
               writeFile file: "./packages/aws/"+ciFilename, text: ciConfigContents
             }
-            sh "make build"
           }
         try {
           try {
