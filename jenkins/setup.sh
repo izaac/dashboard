@@ -3,7 +3,7 @@ shopt -s extglob
 set -x
 
 echo "======== MEMORY ======"
-free
+free -m
 
 NODEJS_VERSION="${NODEJS_VERSION:-v14.19.1}"
 NODEJS_DOWNLOAD_URL="https://nodejs.org/dist"
