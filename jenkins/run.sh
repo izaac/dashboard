@@ -12,6 +12,15 @@ RANCHER_CONTAINER_NAME="${RANCHER_CONTAINER_NAME:-rancher}"
 RANCHER_HOST_PORT_SECURE="${RANCHER_HOST_PORT:-4443}"
 RANCHER_HOST_PORT="${RANCHER_HOST_PORT:-8887}"
 
+if [ -f "env" ]; then
+    set -a;
+    source .env;
+    set +a; 
+fi
+
+cd dashboard
+echo "${PWD}"
+
 export PATH="${NODE_PATH}/node-${NODEJS_VERSION}-linux-x64/bin:${PATH}"
 export TEST_INSTRUMENT=true
 ./scripts/build-e2e
@@ -21,6 +30,8 @@ sudo chown -R $(whoami) .
 
 DASHBOARD_DIST=${DIR}/dist
 EMBER_DIST=${DIR}/dist_ember
+echo "${DASHBOARD_DIST}"
+echo "${EMBER_DIST}"
 
 docker run  --privileged -d -p "${RANCHER_HOST_PORT}:80" -p "${RANCHER_HOST_PORT_SECURE}:443" \
   -v ${DASHBOARD_DIST}:/usr/share/rancher/ui-dashboard/dashboard \
