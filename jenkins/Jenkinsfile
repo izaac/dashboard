@@ -36,17 +36,18 @@ node {
                     userRemoteConfigs: scm.userRemoteConfigs
                   ])
           dir('./corral-packages') {
-                checkout([
-                      $class: 'GitSCM',
-                      branches: [[name: "*/${corralBranch}"]],
-                      extensions: scm.extensions + [[$class: 'CleanCheckout']],
-                      userRemoteConfigs: [[url: corralRepo]]
-                    ])
-          }
-          def ciFilename = "ui-ci-node.yaml"
-          def ciConfigContents = env.CORRAL_PACKAGE_CONFIG
-          if (ciConfigContents != null) {
-            writeFile file: "./corral-packages/packages/aws/"+ciFilename, text: ciConfigContents
+            checkout([
+              $class: 'GitSCM',
+              branches: [[name: "*/${corralBranch}"]],
+              extensions: scm.extensions + [[$class: 'CleanCheckout']],
+              userRemoteConfigs: [[url: corralRepo]]
+            ])
+            def ciFilename = "ui-ci-node.yaml"
+            def ciConfigContents = env.CORRAL_PACKAGE_CONFIG
+            if (ciConfigContents != null) {
+              writeFile file: "./packages/aws/"+ciFilename, text: ciConfigContents
+            }
+            sh "make build"
           }
         try {
           try {
