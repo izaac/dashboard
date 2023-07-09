@@ -30,7 +30,7 @@ chmod +x "${CORRAL}"
 curl -L --silent -o "${GO_DL_PACKAGE}" "${GO_DL_PACKAGE}"
 
 tar -C "${HOME}" -xzf "${GO_PKG_FILENAME}"
-
+ls -al "${HOME}"
 export PATH=$PATH:"${HOME}/go/bin"
 go version
 
