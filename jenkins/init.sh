@@ -62,8 +62,8 @@ cd corral-packages
 echo "${PWD}"
 rm -r dist
 make build
-corral create --recreate --debug ci dist/aws-t3a.2xlarge
-NODE_EXTERNAL_IP="$(corral vars ci single_ip)"
+./corral create --recreate --debug ci dist/aws-t3a.2xlarge
+NODE_EXTERNAL_IP="$(./corral vars ci single_ip)"
 cd ..
 echo "${PWD}"
 
