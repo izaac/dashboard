@@ -9,9 +9,14 @@ case "${OS}" in
     Darwin*)    MACHINE=darwin-amd64;;
 esac
 
+case "${MACHINE}" in
+ amd64*)        GOLANG_PGK_SUFFIX=linux-amd64 ;;
+ darwin-amd64*) GOLANG_PGK_SUFFIX=darwin-amd64 ;;
+esac
+
 GO_DL_URL="https://go.dev/dl" 
 GO_DL_VERSION="${GO_DL_VERSION-1.20.5}"
-GO_PKG_FILENAME="go${GO_DL_VERSION}.${MACHINE}.tar.gz"
+GO_PKG_FILENAME="go${GO_DL_VERSION}.${GOLANG_PGK_SUFFIX}.tar.gz"
 GO_DL_PACKAGE="${GO_DL_URL}/${GO_PKG_FILENAME}"
 CORRAL_PATH="."
 CORRAL="${CORRAL_PATH}/corral"
