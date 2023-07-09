@@ -71,7 +71,7 @@ node {
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
               error()
-          } 
+          }
         } catch(err) {
           echo "Error: " + err
         } finally {
@@ -95,5 +95,6 @@ node {
       }
      }
     }
-  }  
+   }
+  }
 }
