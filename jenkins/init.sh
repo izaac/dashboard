@@ -18,7 +18,7 @@ GO_DL_URL="https://go.dev/dl"
 GO_DL_VERSION="${GO_DL_VERSION-1.20.5}"
 GO_PKG_FILENAME="go${GO_DL_VERSION}.${GOLANG_PGK_SUFFIX}.tar.gz"
 GO_DL_PACKAGE="${GO_DL_URL}/${GO_PKG_FILENAME}"
-CORRAL_PATH="."
+CORRAL_PATH="${HOME}/bin"
 CORRAL="${CORRAL_PATH}/corral"
 CORRAL_VERSION="${CORRAL_VERSION:-1.1.1}"
 CORRAL_DOWNLOAD_URL="https://github.com/rancherlabs/corral/releases/download/"
@@ -36,7 +36,7 @@ curl -L --silent -o "${GO_PKG_FILENAME}" "${GO_DL_PACKAGE}"
 
 tar -C "${HOME}" -xzf "${GO_PKG_FILENAME}"
 ls -al "${HOME}"
-export PATH=$PATH:"${HOME}/go/bin"
+export PATH=$PATH:"${HOME}/go/bin:${CORRAL_PATH}"
 go version
 
 if [[ ! -d "${HOME}/.ssh" ]]; then mkdir -p "${HOME}/.ssh"; fi
@@ -44,25 +44,25 @@ PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
 if [ -f "${PRIV_KEY}" ]; then rm "${PRIV_KEY}"; fi
 ssh-keygen -t ecdsa -b 521 -N "" -f "${PRIV_KEY}"
 
-./corral config --public_key "${HOME}/.ssh/jenkins_ecdsa.pub" --user_id jenkins
-./corral config vars set corral_user_public_key "$(cat ${HOME}/.ssh/jenkins_ecdsa.pub)"
-./corral config vars set corral_user_id jenkins
-./corral config vars set aws_ssh_user ${AWS_SSH_USER}
-./corral config vars set aws_access_key ${AWS_ACCESS_KEY_ID}
-./corral config vars set aws_secret_key ${AWS_SECRET_ACCESS_KEY}
-./corral config vars set aws_ami ${AWS_AMI}
-./corral config vars set aws_region ${AWS_REGION}
-./corral config vars set aws_security_group ${AWS_SECURITY_GROUP}
-./corral config vars set aws_subnet ${AWS_SUBNET}
-./corral config vars set aws_vpc ${AWS_VPC}
-./corral config vars set volume_type ${AWS_VOLUME_TYPE}
-./corral config vars set volume_iops ${AWS_VOLUME_IOPS}
+corral config --public_key "${HOME}/.ssh/jenkins_ecdsa.pub" --user_id jenkins
+corral config vars set corral_user_public_key "$(cat ${HOME}/.ssh/jenkins_ecdsa.pub)"
+corral config vars set corral_user_id jenkins
+corral config vars set aws_ssh_user ${AWS_SSH_USER}
+corral config vars set aws_access_key ${AWS_ACCESS_KEY_ID}
+corral config vars set aws_secret_key ${AWS_SECRET_ACCESS_KEY}
+corral config vars set aws_ami ${AWS_AMI}
+corral config vars set aws_region ${AWS_REGION}
+corral config vars set aws_security_group ${AWS_SECURITY_GROUP}
+corral config vars set aws_subnet ${AWS_SUBNET}
+corral config vars set aws_vpc ${AWS_VPC}
+corral config vars set volume_type ${AWS_VOLUME_TYPE}
+corral config vars set volume_iops ${AWS_VOLUME_IOPS}
 
 cd corral-packages
 make init
 make build
 echo "${PWD}"
-./corral create --recreate --debug ci dist/aws-t3a.2xlarge
+corral create --recreate --debug ci dist/aws-t3a.2xlarge
 NODE_EXTERNAL_IP="$(./corral vars ci single_ip)"
 cd ..
 echo "${PWD}"
