@@ -27,7 +27,7 @@ BRANCH="${BRANCH:-master}"
 if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
 curl -L --silent -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
 chmod +x "${CORRAL}"
-curl -L --silent -o "${GO_DL_PACKAGE}" "${GO_DL_PACKAGE}"
+curl -L --silent -o "${GO_PKG_FILENAME}" "${GO_DL_PACKAGE}"
 
 tar -C "${HOME}" -xzf "${GO_PKG_FILENAME}"
 ls -al "${HOME}"
