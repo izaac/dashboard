@@ -79,6 +79,10 @@ node {
             stage('Grab Results') {
                 sh "jenkins/scpget.sh dashboard/junit.xml"
             }
+          } catch(err) {
+              echo "Error: " + err
+              currentBuild.result = 'FAILURE'
+              error()
           }
           stage('Clean Test Environment') {
             try {
