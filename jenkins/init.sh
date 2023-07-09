@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -e
 set -x
 
 OS="$(uname -s)"
@@ -58,11 +59,11 @@ ssh-keygen -t ecdsa -b 521 -N "" -f "${PRIV_KEY}"
 ./corral config vars set volume_type ${AWS_VOLUME_TYPE}
 ./corral config vars set volume_iops ${AWS_VOLUME_IOPS}
 
-cd corral-packages
+pushd corral-packages
 echo "${PWD}"
-rm -r dist
 make build
-./corral create --recreate --debug ci dist/aws-t3a.2xlarge
+popd
+./corral create --recreate --debug ci corral-packages/dist/aws-t3a.2xlarge
 NODE_EXTERNAL_IP="$(./corral vars ci single_ip)"
 cd ..
 echo "${PWD}"
