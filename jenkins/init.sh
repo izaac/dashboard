@@ -9,6 +9,10 @@ case "${OS}" in
     Darwin*)    MACHINE=darwin-amd64;;
 esac
 
+GO_DL_URL="https://go.dev/dl" 
+GO_DL_VERSION="${GO_DL_VERSION-1.20.5}"
+GO_PKG_FILENAME="go${GO_DL_VERSION}.${MACHINE}.tar.gz"
+GO_DL_PACKAGE="${GO_DL_URL}/${GO_PKG_FILENAME}"
 CORRAL_PATH="."
 CORRAL="${CORRAL_PATH}/corral"
 CORRAL_VERSION="${CORRAL_VERSION:-1.1.1}"
@@ -23,6 +27,12 @@ BRANCH="${BRANCH:-master}"
 if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
 curl -L --silent -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
 chmod +x "${CORRAL}"
+curl -L --silent -o "${GO_DL_PACKAGE}" "${GO_DL_PACKAGE}"
+
+tar -C "${HOME}" -xzf "${GO_PKG_FILENAME}"
+
+export PATH=$PATH:"${HOME}/go/bin"
+go version
 
 if [[ ! -d "${HOME}/.ssh" ]]; then mkdir -p "${HOME}/.ssh"; fi
 PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
