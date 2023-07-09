@@ -70,7 +70,6 @@ node {
           } catch (err) {
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
-              error()
           }
         } catch(err) {
           echo "Error: " + err
@@ -82,7 +81,6 @@ node {
           } catch(err) {
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
-              error()
           }
           stage('Clean Test Environment') {
             try {
