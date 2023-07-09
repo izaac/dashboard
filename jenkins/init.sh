@@ -9,7 +9,7 @@ case "${OS}" in
     Darwin*)    MACHINE=darwin-amd64;;
 esac
 
-CORRAL_PATH="${HOME}/bin"
+CORRAL_PATH="."
 CORRAL="${CORRAL_PATH}/corral"
 CORRAL_VERSION="${CORRAL_VERSION:-1.1.1}"
 CORRAL_DOWNLOAD_URL="https://github.com/rancherlabs/corral/releases/download/"
