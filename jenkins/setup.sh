@@ -52,4 +52,4 @@ tail -n 1 jenkins/Dockerfile
 mv jenkins/Dockerfile{,.ci}
 
 sudo apt-get update
-sudo apt-get --no-install-recommends -y tree
+sudo apt-get install --no-install-recommends -y tree
