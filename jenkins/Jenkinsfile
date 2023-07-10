@@ -92,7 +92,7 @@ node {
             }
           }
           stage('Test Report') {
-            step([$class: 'JUnitResultArchiver', testResults: '**/junit.xml'])
+            step([$class: 'JUnitResultArchiver', testResults: '**/results.xml'])
           }
         }
       }
