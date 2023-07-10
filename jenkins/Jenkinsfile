@@ -27,34 +27,39 @@ node {
       withCredentials([ string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')]) {
       withEnv(paramsMap) {
-        stage('Checkout') {
-          deleteDir()
-          checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: "*/${branch}"]],
-                    extensions: scm.extensions + [[$class: 'CleanCheckout']],
-                    userRemoteConfigs: scm.userRemoteConfigs
-                  ])
-          dir('./corral-packages') {
+            stage('Checkout') {
+            deleteDir()
             checkout([
-              $class: 'GitSCM',
-              branches: [[name: "*/${corralBranch}"]],
-              extensions: scm.extensions + [[$class: 'CleanCheckout']],
-              userRemoteConfigs: [[url: corralRepo]]
-            ])
-            def ciFilename = "ui-ci-node.yaml"
-            def ciConfigContents = env.CORRAL_PACKAGE_CONFIG
-            if (ciConfigContents != null) {
-              writeFile file: "./packages/aws/"+ciFilename, text: ciConfigContents
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${branch}"]],
+                        extensions: scm.extensions + [[$class: 'CleanCheckout']],
+                        userRemoteConfigs: scm.userRemoteConfigs
+                    ])
+            dir('./corral-packages') {
+                checkout([
+                  $class: 'GitSCM',
+                  branches: [[name: "*/${corralBranch}"]],
+                  extensions: scm.extensions + [[$class: 'CleanCheckout']],
+                  userRemoteConfigs: [[url: corralRepo]]
+                ])
+                def ciFilename = "ui-ci-node.yaml"
+                def ciConfigContents = env.CORRAL_PACKAGE_CONFIG
+                if (ciConfigContents != null) {
+                    writeFile file: "./packages/aws/"+ciFilename, text: ciConfigContents
+                }
             }
           }
-        try {
           try {
-            sh "ls -al"
             stage('Initialize') {
                 sh 'jenkins/init.sh'
                 sh 'jenkins/generate_env.sh'
             }
+          } catch (err) {
+              echo "Error: " + err
+              currentBuild.result = 'FAILURE'
+              error()
+          }
+          try {
             stage('Setup Dependencies') {
                 sh "jenkins/sshexec.sh \"dashboard/jenkins/setup.sh\""
             }
@@ -71,33 +76,31 @@ node {
               echo "Error: " + err
               currentBuild.result = 'FAILURE'
           }
-        } catch(err) {
-          echo "Error: " + err
-        } finally {
           try {
             stage('Grab Results') {
-                sh "jenkins/scpget.sh dashboard/results.xml"
-                sh "find . -type f -iname *.xml"
+              sh "jenkins/scpget.sh dashboard/results.xml"
+              sh "find . -type f -iname *.xml"
             }
           } catch(err) {
               echo "Error: " + err
-              currentBuild.result = 'FAILURE'
           }
-          stage('Clean Test Environment') {
-            try {
-                sh "./corral delete ci"
-            } catch(err) {
-              echo "Error: " + err
-              currentBuild.result = 'FAILURE'
+          try {
+            stage('Clean Test Environment') {  
+              sh "./corral delete ci"
+            }
+          } catch(err) {
+            echo "Error: " + err
+          }
+          try {
+            stage('Test Report') {
+              step([$class: 'JUnitResultArchiver', testResults: '**/results.xml'])
             }
           }
-          stage('Test Report') {
-            step([$class: 'JUnitResultArchiver', testResults: '**/results.xml'])
+          catch(err) {
+            echo "Error: " + err
           }
         }
       }
-     }
     }
-   }
   }
 }
