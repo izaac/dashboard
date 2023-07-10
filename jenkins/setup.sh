@@ -50,3 +50,6 @@ sed -i "/ENTRYPOINT*/d" jenkins/Dockerfile
 echo 'ENTRYPOINT ["bash", "jenkins/cypress.sh"]' >>  jenkins/Dockerfile
 tail -n 1 jenkins/Dockerfile
 mv jenkins/Dockerfile{,.ci}
+
+sudo apt-get update
+sudo apt-get --no-install-recommends -y tree

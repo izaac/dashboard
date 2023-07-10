@@ -9,4 +9,5 @@ ls -al
 yarn install
 
 cypress run --browser chrome --reporter junit --reporter-options "mochaFile=junit-[hash].xml,toConsole=true"
-sudo find . -type f -iname *.xml
+sudo chown -R $(whoami) .
+jrm junit.xml "cypress/results/junit-*" "./junit-*" "${HOME}/dashboard"

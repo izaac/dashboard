@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -e
 set -x
 
 NODEJS_VERSION="${NODEJS_VERSION:-v14.19.1}"
@@ -87,6 +86,3 @@ docker run --network container:rancher --name "${CYPRESS_CONTAINER_NAME}" -t \
   -e CATTLE_BOOTSTRAP_PASSWORD=${TEST_PASSWORD} \
   -v "${PWD}":/e2e \
   -w /e2e "cypress/${CYPRESS_DOCKER_TYPE}:${CYPRESS_DOCKER_VERSION}"
-
-sudo chown -R $(whoami) .
-jrm junit.xml "cypress/results/junit-*" "./junit-*"
