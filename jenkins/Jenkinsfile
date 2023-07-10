@@ -76,7 +76,7 @@ node {
         } finally {
           try {
             stage('Grab Results') {
-                sh "jenkins/scpget.sh dashboard/junit.xml"
+                sh "jenkins/scpget.sh dashboard/results.xml"
                 sh "find . -type f -iname *.xml"
             }
           } catch(err) {
