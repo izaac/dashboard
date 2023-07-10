@@ -25,7 +25,7 @@ export PATH="${NODE_PATH}/node-${NODEJS_VERSION}-linux-x64/bin:${PATH}"
 export TEST_INSTRUMENT=true
 ./scripts/build-e2e
 
-DIR=$(cd $(dirname $0)/..; pwd)
+DIR="${HOME}/dashboard"
 sudo chown -R $(whoami) .
 
 DASHBOARD_DIST=${DIR}/dist
