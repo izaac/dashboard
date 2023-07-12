@@ -8,4 +8,4 @@ ls -al
 
 yarn install
 
-cypress run --browser chrome --reporter junit --reporter-options "mochaFile=junit-[hash].xml,toConsole=true"
+NOCOLOR=1 cypress run --browser chrome --reporter junit --reporter-options "mochaFile=junit-[hash].xml,toConsole=true,jenkins/sandbox/cypress.sh"
