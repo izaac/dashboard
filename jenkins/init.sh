@@ -3,41 +3,6 @@
 set -e
 set -x
 
-OS="$(uname -s)"
-case "${OS}" in
-    Linux*)     MACHINE=amd64;;
-    Darwin*)    MACHINE=darwin-amd64;;
-esac
-
-case "${MACHINE}" in
- amd64*)        GOLANG_PGK_SUFFIX=linux-amd64 ;;
- darwin-amd64*) GOLANG_PGK_SUFFIX=darwin-amd64 ;;
-esac
-
-GO_DL_URL="https://go.dev/dl" 
-GO_DL_VERSION="${GO_DL_VERSION-1.20.5}"
-GO_PKG_FILENAME="go${GO_DL_VERSION}.${GOLANG_PGK_SUFFIX}.tar.gz"
-GO_DL_PACKAGE="${GO_DL_URL}/${GO_PKG_FILENAME}"
-CORRAL_PATH="."
-CORRAL="${CORRAL_PATH}/corral"
-CORRAL_VERSION="${CORRAL_VERSION:-1.1.1}"
-CORRAL_DOWNLOAD_URL="https://github.com/rancherlabs/corral/releases/download/"
-CORRAL_DOWNLOAD_BIN="${CORRAL_DOWNLOAD_URL}v${CORRAL_VERSION}/corral-${CORRAL_VERSION}-${MACHINE}"
-PATH="${CORRAL_PATH}:${PATH}"
-CORRAL_PACKAGES_REPO="${CORRAL_PACKAGES_REPO:-https://github.com/rancherlabs/corral-packages.git}"
-CORRAL_PACKAGES_BRANCH="${CORRAL_PACKAGES_BRANCH:-main}"
-REPO="${REPO:-https://github.com/rancher/dashboard.git}"
-BRANCH="${BRANCH:-master}"
-
-if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
-curl -L --silent -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
-chmod +x "${CORRAL}"
-curl -L --silent -o "${GO_PKG_FILENAME}" "${GO_DL_PACKAGE}"
-tar -C "${HOME}" -xzf "${GO_PKG_FILENAME}"
-
-ls -al "${HOME}"
-export PATH=$PATH:"${HOME}/go/bin:${HOME}/bin"
-
 go version
 
 if [[ ! -d "${HOME}/.ssh" ]]; then mkdir -p "${HOME}/.ssh"; fi
@@ -45,31 +10,62 @@ PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
 if [ -f "${PRIV_KEY}" ]; then rm "${PRIV_KEY}"; fi
 ssh-keygen -t ecdsa -b 521 -N "" -f "${PRIV_KEY}"
 
-./corral config --public_key "${HOME}/.ssh/jenkins_ecdsa.pub" --user_id jenkins
-./corral config vars set corral_user_public_key "$(cat ${HOME}/.ssh/jenkins_ecdsa.pub)"
-./corral config vars set corral_user_id jenkins
-./corral config vars set aws_ssh_user ${AWS_SSH_USER}
-./corral config vars set aws_access_key ${AWS_ACCESS_KEY_ID}
-./corral config vars set aws_secret_key ${AWS_SECRET_ACCESS_KEY}
-./corral config vars set aws_ami ${AWS_AMI}
-./corral config vars set aws_region ${AWS_REGION}
-./corral config vars set aws_security_group ${AWS_SECURITY_GROUP}
-./corral config vars set aws_subnet ${AWS_SUBNET}
-./corral config vars set aws_vpc ${AWS_VPC}
-./corral config vars set volume_type ${AWS_VOLUME_TYPE}
-./corral config vars set volume_iops ${AWS_VOLUME_IOPS}
+cat << EOF >> ${HOME}/.ssh/config
+Host *
+  ServerAliveInterval 50
+EOF
 
-cd corral-packages
+cd /opt/src/github.com/rancherlabs/corral-packages/
 make init
 make build
 echo "${PWD}"
 cd ..
-./corral create --recreate --debug ci corral-packages/dist/aws-t3a.2xlarge
-NODE_EXTERNAL_IP="$(./corral vars ci single_ip)"
-cd ..
+cat ${CATTLE_TEST_CONFIG}
+env
+cd $WORKSPACE
+tests/v2/validation/pipeline/singlenode/singlenode.sh
+singlenode
+
+corral list
+
+NODE_EXTERNAL_IP="$(corral vars ci single_ip)"
 echo "${PWD}"
 
 sleep 10
+
+# UNCOMMENT THE FOLLOWING AFTER DEV TESTING
+
+#ssh -i ${PRIV_KEY} -o StrictHostKeyChecking=no \
+#  -o UserKnownHostsFile=/dev/null "${AWS_SSH_USER}@${NODE_EXTERNAL_IP}" "git clone -b ${DASHBOARD_BRANCH} ${GITHUB_URL}${DASHBOARD_REPO} /home/{${AWS_SSH_USER}/dashboard"
+
+# temporary to work with local dev
+scp -r -i ${PRIV_KEY} -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null /opt/dashboard/ "${AWS_SSH_USER}@${NODE_EXTERNAL_IP}:/home/${AWS_SSH_USER}/dashboard"
+
 ssh -i ${PRIV_KEY} -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null "${AWS_SSH_USER}@${NODE_EXTERNAL_IP}" \
-    "git clone -b ${BRANCH} ${REPO} && git clone -b ${CORRAL_PACKAGES_BRANCH} ${CORRAL_PACKAGES_REPO}"
+  -o UserKnownHostsFile=/dev/null "${AWS_SSH_USER}@${NODE_EXTERNAL_IP}" "ls -al /home/${AWS_SSH_USER};"
+
+DEBUG="${DEBUG:-false}"
+
+DASHBOARD="/home/${AWS_SSH_USER}/dashboard"
+NODEJS_VERSION="${NODEJS_VERSION:-v14.19.1}"
+NODEJS_FILE="node-${NODEJS_VERSION}-linux-x64.tar.xz"
+CYPRESS_DOCKER_TYPE="${CYPRESS_DOCKER_TYPE:-included}"
+CYPRESS_DOCKER_VERSION="${CYPRESS_DOCKER_VERSION:-12.3.0}"
+PRIV_KEY="${HOME}/.ssh/jenkins_ecdsa"
+export RANCHER_NODE_EXTERNAL_IP="${NODE_EXTERNAL_IP}"
+
+env | egrep '^(DASHBOARD|CORRAL_|CYPRESS_|AWS_|NODEJS_|GITHUB_|RANCHER_|REPO|BRANCH|DEBUG).*\=.+' | sort >> .env
+
+if [ "false" != "${DEBUG}" ]; then
+    cat .env
+fi
+
+cat .env
+
+sed -i 's/^/export /' .env
+
+cat .env
+
+scp -i ${PRIV_KEY} -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null .env "${AWS_SSH_USER}@${RANCHER_NODE_EXTERNAL_IP}:/home/${AWS_SSH_USER}/.env"
