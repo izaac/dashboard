@@ -22,8 +22,6 @@ node {
       }
       withEnv(paramsMap) {
           stage('Checkout') {
-          sh "cypress/jenkins/parsexml.sh"
-          error "STOP"
           deleteDir()
           checkout([
                       $class: 'GitSCM',
@@ -48,6 +46,8 @@ node {
         }
         try {
           stage('Run Tests') {
+              sh "cypress/jenkins/parsexml.sh"
+              error "STOP"
               sh 'pwd'
               sh 'ls -al cypress/jenkins'
               sh 'cypress/jenkins/init.sh'
