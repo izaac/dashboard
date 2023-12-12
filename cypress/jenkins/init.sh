@@ -89,9 +89,9 @@ if [[ "${JOB_TYPE}" == "recurring" ]]; then
     corral config vars set rancher_image_tag ${RANCHER_IMAGE_TAG}
   fi
   cd "${WORKSPACE}/corral-packages"
-  yq -i e ".variables.rancher_version += [\"${RANCHER_VERSION}\"] | .variables.rancher_version style=\"literal\"" packages/aws/rancher.yaml
-  yq -i e ".variables.kubernetes_version += [\"${RKE2_KUBERNETES_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rancher.yaml
-  yq -i e ".variables.cert_manager_version += [\"${CERT_MANAGER_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rancher.yaml
+  yq -i e ".variables.rancher_version += [\"${RANCHER_VERSION}\"] | .variables.rancher_version style=\"literal\"" packages/aws/rancher-rke2.yaml
+  yq -i e ".variables.kubernetes_version += [\"${RKE2_KUBERNETES_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rancher-rke2.yaml
+  yq -i e ".variables.cert_manager_version += [\"${CERT_MANAGER_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rancher-rke2.yaml
 
   cat packages/aws/rancher.yaml
   ls -al packages/aws/
