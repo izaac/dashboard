@@ -102,7 +102,7 @@ if [[ "${JOB_TYPE}" == "recurring" ]]; then
 
   prefix_random=$(cat /dev/urandom | env LC_ALL=C tr -dc 'a-z0-9' | fold -w 8 | head -n 1)
 
-  corral config vars set bootstrap_password ${BOOTSTRAP_PASSWORD:-password}
+  corral config vars set bootstrap_password ${BOOTSTRAP_PASSWORD:-password1234}
   corral config vars set aws_route53_zone ${AWS_ROUTE53_ZONE}
   corral config vars set server_count ${SERVER_COUNT:-3}
   corral config vars set agent_count ${AGENT_COUNT:-0}
