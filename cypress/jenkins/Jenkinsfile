@@ -77,7 +77,7 @@ node {
                 try {
                   stage('Clean Test Environment') {  
                     sh "corrals=\$(${WORKSPACE}/bin/corral list | grep -v \"NAME\" | grep -v \"-\" | cut -d' ' -f 2)" +
-                    "&& for corral in \$corrals; do ${WORKSPACE}/bin/corral delete \$corral}; done"
+                    "&& for corral in \$corrals; do ${WORKSPACE}/bin/corral delete \$corral; done"
                   }
                 } catch(err) {
                   echo "Error: " + err
