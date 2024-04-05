@@ -76,7 +76,7 @@ node {
             if ("${env.CLEANUP}".toLowerCase() == "true") {
                 try {
                   stage('Clean Test Environment') {  
-                    sh "corrals=\$(${WORKSPACE}/bin/corral list | grep -v \"NAME\" | grep -v \"\+\" | cut -d' ' -f 2)" +
+                    sh "corrals=\$(${WORKSPACE}/bin/corral list | grep -v \"NAME\" | grep -v \"-" | cut -d' ' -f 2)" +
                        "for i in ${corrals}; do ${WORKSPACE}/bin/corral delete ${i}; done"
                   }
                 } catch(err) {
