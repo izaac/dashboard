@@ -53,6 +53,9 @@ chmod +x semver
 mv semver "${WORKSPACE}/bin"
 
 ls -al "${WORKSPACE}"
+ls -al "${WORKSPACE}/bin"
+ls -al "${WORKSPACE}/go"
+ls -al "${WORKSPACE}/go/bin"
 export PATH=$PATH:"${WORKSPACE}/go/bin:${WORKSPACE}/bin"
 echo "${PATH}"
 
