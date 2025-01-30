@@ -181,6 +181,11 @@ create_initial_clusters() {
   corral config vars set custom_node_ip "$(corral vars customnode first_node_ip)"
   corral config vars set custom_node_key "$(corral vars customnode corral_private_key | base64 -w 0)"
 
+  corral create --skip-cleanup --recreate --debug customnoderke1 \
+    "dist/aws-t3a.xlarge"
+  corral config vars set custom_node_ip_rke1 "$(corral vars customnoderke1 first_node_ip)"
+  corral config vars set custom_node_key_rke1 "$(corral vars customnoderke1 corral_private_key | base64 -w 0)"
+  
   corral config vars set instance_type "${AWS_INSTANCE_TYPE}"
   corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
   echo "Corral Package string: ${K3S_KUBERNETES_VERSION}-${RANCHER_VERSION//v}-${CERT_MANAGER_VERSION}"
