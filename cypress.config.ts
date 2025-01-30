@@ -94,7 +94,9 @@ export default defineConfig({
     azureClientId:       process.env.AZURE_CLIENT_ID,
     azureClientSecret:   process.env.AZURE_CLIENT_SECRET,
     customNodeIp:        process.env.CUSTOM_NODE_IP,
-    customNodeKey:       process.env.CUSTOM_NODE_KEY
+    customNodeKey:       process.env.CUSTOM_NODE_KEY,
+    customNodeIpRke1:    process.env.CUSTOM_NODE_IP_RKE1,
+    customNodeKeyRke1:   process.env.CUSTOM_NODE_KEY_RKE1
   },
   e2e: {
     fixturesFolder: 'cypress/e2e/blueprints',

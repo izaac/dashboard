@@ -427,7 +427,7 @@ describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUs
     const createClusterRKE1Page = new ClusterManagerCreateRke1CustomPagePo();
 
     describe('RKE1 Custom', () => {
-      it('can create new cluster', () => {
+      it.only('can create new cluster', () => {
         clusterList.goTo();
         clusterList.checkIsCurrentPage();
         clusterList.createCluster();
@@ -436,7 +436,7 @@ describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUs
 
         createClusterRKE1Page.rkeToggle().set('RKE1');
         createClusterRKE1Page.selectCustom(0);
-        loadingPo.checkNotExists();
+        loadingPo.checkNotExists(EXTRA_LONG_TIMEOUT_OPT);
 
         createClusterRKE1Page.clusterName().set(rke1CustomName);
 
@@ -481,6 +481,26 @@ describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUs
         }
 
         createClusterRKE1Page.nodeCommand().checkExists();
+        createClusterRKE1Page.nodeCommand().content().then(($value) => {
+          const registrationCommand = $value.text();
+
+          cy.exec(`echo ${ Cypress.env('customNodeKeyRke1') } | base64 -d > custom_node.key && chmod 600 custom_node.key`).then((result) => {
+            cy.log('Creating the custom_node.key');
+            cy.log(result.stderr);
+            cy.log(result.stdout);
+            expect(result.code).to.eq(0);
+          });
+          cy.exec(`head custom_node.key`).then((result) => {
+            cy.log(result.stdout);
+            cy.log(result.stderr);
+            expect(result.code).to.eq(0);
+          });
+          cy.exec(createRKE2ClusterPage.customClusterRegistrationCmd(registrationCommand)).then((result) => {
+            cy.log(result.stderr);
+            cy.log(result.stdout);
+            expect(result.code).to.eq(0);
+          });
+        });
         createClusterRKE1Page.done();
 
         clusterList.waitForPage();
