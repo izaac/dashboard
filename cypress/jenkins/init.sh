@@ -189,14 +189,17 @@ create_initial_clusters() {
 #   corral config vars set custom_node_ip "$(corral vars customnode first_node_ip)"
 #   corral config vars set custom_node_key "$(corral vars customnode corral_private_key | base64 -w 0)"
 
+  corral config vars delete aws_volume_size
   corral config vars set instance_type "${AWS_INSTANCE_TYPE}"
   corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
   echo "RKE1 Corral Package string: ${RKE1_KUBERNETES_VERSION}-${RKE1_VERSION}"
   corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-i"
   corral config vars set server_count 1
   corral create --skip-cleanup --recreate --debug importrke1 \
-    "dist/aws-rke1-true-calico-${RKE1_KUBERNETES_VERSION}-${RKE1_VERSION}"
-  exit 0 
+    "dist/aws-rke1-true-calico-${RKE1_KUBERNETES_VERSION}-${RKE1_VERSION}" 
+  corral config vars set aws_volume_size "${AWS_VOLUME_SIZE}"
+  exit 0
+
   corral config vars set instance_type "${AWS_INSTANCE_TYPE}"
   corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
   echo "Corral Package string: ${K3S_KUBERNETES_VERSION}-${RANCHER_VERSION//v}-${CERT_MANAGER_VERSION}"
