@@ -40,6 +40,8 @@ NODEJS_VERSION="${NODEJS_VERSION:-14.19.1}"
 CYPRESS_VERSION="${CYPRESS_VERSION:-13.2.0}"
 YARN_VERSION="${YARN_VERSION:-1.22.19}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-v1.29.8}"
+RKE1_VERSION="${RKE1_VERSION:-v1.7.2}"
+RKE1_KUBERNETES_VERSION="${RKE1_KUBERNETES_VERSION:-v1.28.15-rancher1-1}"
 YQ_BIN="mikefarah/yq/releases/latest/download/yq_linux_amd64"
 
 mkdir -p "${WORKSPACE}/bin"
@@ -60,6 +62,7 @@ mv semver "${WORKSPACE}/bin"
 ls -al "${WORKSPACE}"
 export PATH=$PATH:"${WORKSPACE}/go/bin:${WORKSPACE}/bin"
 export GOROOT="${WORKSPACE}/go"
+export GOPROXY="https://proxy.golang.org"
 echo "${PATH}"
 
 
@@ -94,6 +97,8 @@ corral config vars set azure_client_id "${AZURE_CLIENT_ID}"
 corral config vars set azure_client_secret "${AZURE_CLIENT_SECRET}"
 corral config vars set create_initial_clusters "${CREATE_INITIAL_CLUSTERS}"
 corral config vars set gke_service_account "${GKE_SERVICE_ACCOUNT}"
+corral config vars set rke1_version "${RKE1_VERSION}"
+corral config vars set rke1_kubernetes_version "${RKE1_KUBERNETES_VERSION}"
 
 create_initial_clusters() {
   shopt -u nocasematch
@@ -147,7 +152,9 @@ create_initial_clusters() {
   cd "${WORKSPACE}/corral-packages"
   yq -i e ".variables.rancher_version += [\"${RANCHER_VERSION}\"] | .variables.rancher_version style=\"literal\"" packages/aws/rancher-k3s.yaml
   yq -i e ".variables.kubernetes_version += [\"${K3S_KUBERNETES_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rancher-k3s.yaml
-  yq -i e ".variables.cert_manager_version += [\"${CERT_MANAGER_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rancher-k3s.yaml
+  yq -i e ".variables.cert_manager_version += [\"${CERT_MANAGER_VERSION}\"] | .variables.cert_manager_version style=\"literal\"" packages/aws/rancher-k3s.yaml
+  yq -i e ".variables.rke1_version += [\"${RKE1_VERSION}\"] | .variables.rke1_version style=\"literal\"" packages/aws/rke1.yaml
+  yq -i e ".variables.kubernetes_version += [\"${RKE1_KUBERNETES_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/rke1.yaml
 
   echo $'manifest:\n  name: custom-node\ndescription: custom generated node\ntemplates:\n  - aws/nodes\nvariables:\n  instance_type:\n    - t3a.xlarge' > packages/aws/custom-node.yaml
 
@@ -156,6 +163,7 @@ create_initial_clusters() {
   ls -al packages/aws/
   cat packages/aws/dashboard-tests.yaml
   cat packages/aws/custom-node.yaml
+  cat packages/aws/rke1.yaml
 
   prefix_random=$(cat /dev/urandom | env LC_ALL=C tr -dc 'a-z0-9' | fold -w 8 | head -n 1)
 
@@ -172,6 +180,7 @@ create_initial_clusters() {
   make init
   make build
   ls -al dist
+  exit 0
   corral config vars set node_count 1
   corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-c"
   corral config vars delete instance_type
