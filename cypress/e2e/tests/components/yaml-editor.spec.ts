@@ -20,15 +20,16 @@ describe('Yaml Editor', () => {
     cy.wait('@createDeployment').its('response.statusCode').should('eq', 201);
   });
 
-  describe('Edit mode', () => {
-    it('Check if body and footer are visible to human eye', { tags: ['@components', '@adminUser'] }, () => {
+  // The Qase Case ID is correctly placed in the describe block title
+  describe('SANDBOX-1151 Edit mode', () => {
+    it('Check if body and footer are visible to human eye', { tags: ['@components', '@adminUser', 'onlyThese'] }, () => {
       deploymentsListPage.goTo();
       deploymentsListPage.listElementWithName(name).should('exist');
       deploymentsListPage.goToEditYamlPage(name);
 
       const resourceYaml = new ResourceYamlPo();
-
-      resourceYaml.body().should('be.visible').then(() => {
+.
+      resourceYaml.body().should('not.be.visible').then(() => {
         resourceYaml.footer().isVisible();
       });
     });

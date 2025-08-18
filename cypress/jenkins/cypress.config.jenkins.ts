@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+
 import { defineConfig } from 'cypress';
 import { removeDirectory } from 'cypress-delete-downloads-folder';
 import websocketTasks from '../../cypress/support/utils/webSocket-utils';
@@ -22,7 +23,7 @@ const testDirs = [
   'cypress/e2e/tests/extensions/**/*.spec.ts'
 ];
 const skipSetup = process.env.TEST_SKIP?.includes('setup');
-const baseUrl = (process.env.TEST_BASE_URL || 'https://localhost:8005').replace(/\/$/, '');
+const baseUrl = 'https://localhost:8005';
 const DEFAULT_USERNAME = 'admin';
 const username = process.env.TEST_USERNAME || DEFAULT_USERNAME;
 const apiUrl = process.env.API || (baseUrl.endsWith('/dashboard') ? baseUrl.split('/').slice(0, -1).join('/') : baseUrl);
@@ -79,9 +80,9 @@ export default defineConfig({
     baseUrl,
     api:                 apiUrl,
     username,
-    password:            process.env.CATTLE_BOOTSTRAP_PASSWORD || process.env.TEST_PASSWORD,
+    password:            'iz12345678910',
     bootstrapPassword:   process.env.CATTLE_BOOTSTRAP_PASSWORD,
-    grepTags:            process.env.GREP_TAGS,
+    grepTags:            '@adminUser',
     // the below env vars are only available to tests that run in Jenkins
     awsAccessKey:        process.env.AWS_ACCESS_KEY_ID,
     awsSecretKey:        process.env.AWS_SECRET_ACCESS_KEY,
@@ -96,22 +97,39 @@ export default defineConfig({
     customNodeIpRke1:    process.env.CUSTOM_NODE_IP_RKE1,
     customNodeKeyRke1:   process.env.CUSTOM_NODE_KEY_RKE1
   },
-  // Jenkins reporters configuration jUnit and HTML
+  // Jenkins reporters configuration: Qase + JUnit
   reporter:        'cypress-multi-reporters',
   reporterOptions: {
-    reporterEnabled:                   'cypress-mochawesome-reporter, mocha-junit-reporter',
+    reporterEnabled:                   'cypress-qase-reporter, mocha-junit-reporter',
     mochaJunitReporterReporterOptions: {
       mochaFile:      'cypress/jenkins/reports/junit/junit-[hash].xml',
       toConsole:      true,
       jenkinsMode:    true,
       includePending: true
     },
-    cypressMochawesomeReporterReporterOptions: { charts: false },
+    // Qase reporter configuration
+    cypressQaseReporterReporterOptions: {
+      // Use an environment variable for the API token for security
+      apiToken:          process.env.QASE_API_TOKEN,
+      projectCode:       'SANDBOX',
+      // Add a runName to create a new test run every time.
+      // This creates a dynamic name with a timestamp.
+      runName:           `Cypress Automated Run - ${new Date().toISOString()}`,
+      // The 'runId' key is removed to ensure a new run is always created.
+      runComplete:       true,
+      uploadAttachments: true,
+      // Logging is helpful for debugging the reporter itself
+      logging:           true
+    }
   },
   e2e: {
     setupNodeEvents(on, config) {
-      require('cypress-mochawesome-reporter/plugin')(on);
+      console.log('setupNodeEvents called');
+      
+      // Register Qase reporter plugin
+      require('cypress-qase-reporter/plugin')(on, config);
       require('@cypress/grep/src/plugin')(config);
+      console.log('Qase reporter plugin registered');
 
       // Load Accessibility plugin if configured
       if (process.env.TEST_A11Y) {
@@ -126,7 +144,6 @@ export default defineConfig({
         outputTarget:         { 'out.html': 'html' },
         logToFilesOnAfterRun: true,
         printLogsToConsole:   'never',
-        // printLogsToFile:      'always', // default prints on failures
       });
 
       return config;
@@ -134,7 +151,7 @@ export default defineConfig({
     fixturesFolder:               'cypress/e2e/blueprints',
     experimentalSessionAndOrigin: true,
     specPattern:                  testDirs,
-    baseUrl
+    baseUrl:                      'https://localhost:8005',
   },
   video:               false,
   videoCompression:    25,
