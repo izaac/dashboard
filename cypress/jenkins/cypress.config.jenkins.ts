@@ -90,7 +90,8 @@ export default defineConfig({
     baseUrl,
     api:                 apiUrl,
     username,
-    password:            process.env.CATTLE_BOOTSTRAP_PASSWORD || process.env.TEST_PASSWORD,
+    // password:            process.env.CATTLE_BOOTSTRAP_PASSWORD || process.env.TEST_PASSWORD,
+    password:            'iz12345678910',
     bootstrapPassword:   process.env.CATTLE_BOOTSTRAP_PASSWORD,
     grepTags:            process.env.GREP_TAGS,
     // the below env vars are only available to tests that run in Jenkins

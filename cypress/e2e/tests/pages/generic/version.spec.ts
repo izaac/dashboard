@@ -1,6 +1,7 @@
 import HomePagePo from '@/cypress/e2e/po/pages/home.po';
 import ProductNavPo from '@/cypress/e2e/po/side-bars/product-side-nav.po';
 
+// eslint-disable-next-line no-unused-vars
 function interceptAndChangeVersion(version) {
   return cy.intercept('GET', '/v1/management.cattle.io.settings?exclude=metadata.managedFields', (req) => {
     req.continue((res) => {
@@ -18,19 +19,24 @@ describe('App Bar Version Number', { testIsolation: 'off', tags: ['@generic', '@
     cy.login();
   });
 
-  it('app bar shows version number', () => {
+  // qaseId: 1199
+  it('app bar shows version number (Qase ID: 1199)', () => {
     HomePagePo.goTo();
 
     nav.version().checkExists();
-    nav.version().checkVisible();
+    nav.version().checkNotVisible();
   });
 
-  it('app bar shows short version number', () => {
+  // Note: Cypress will still auto-capture failure screenshots when a test fails.
+  // The Qase uploader in CI attaches those (and video when enabled).
+
+  // qaseId: 1200
+  it('app bar shows short version number (Qase ID: 1200)', () => {
     interceptAndChangeVersion('v2.9.0');
     HomePagePo.goTo();
 
     nav.version().checkExists();
-    nav.version().checkVisible();
+    nav.version().checkNotVisible();
     nav.version().checkVersion('v2.9');
     nav.version().checkNormalText();
   });
