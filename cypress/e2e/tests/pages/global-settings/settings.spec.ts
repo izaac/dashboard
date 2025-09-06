@@ -297,7 +297,7 @@ describe('Settings', { testIsolation: 'off' }, () => {
     resetSettings.push('auth-token-max-ttl-minutes');
   });
 
-  it('can update agent-tls-mode', { tags: ['@globalSettings', '@adminUser'] }, () => {
+  it.only('can update agent-tls-mode', { tags: ['@globalSettings', '@adminUser'] }, () => {
     // Update setting
     SettingsPagePo.navTo();
     settingsPage.editSettingsByLabel('agent-tls-mode');

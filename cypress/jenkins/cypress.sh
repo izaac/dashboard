@@ -23,6 +23,6 @@ yarn add -W https://github.com/elaichenkov/cypress-delete-downloads-folder
 
 export NO_COLOR=1
 export PERCY_CLIENT_ERROR_LOGS=false
-CYPRESS_grepTags="CYPRESSTAGS" npx percy exec -- cypress run --browser chrome --config-file cypress/jenkins/cypress.config.jenkins.ts  --spec cypress/e2e/tests/pages/explorer2/workloads/deployments.spec.ts
+CYPRESS_grepTags="CYPRESSTAGS" npx percy exec -- cypress run --browser chrome --config-file cypress/jenkins/cypress.config.jenkins.ts  --spec cypress/e2e/tests/pages/global-settings/settings.spec.ts
 
 echo "CYPRESS EXIT CODE: $?"
