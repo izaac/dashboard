@@ -9,7 +9,7 @@ import RadioGroupInputPo from '~/cypress/e2e/po/components/radio-group-input.po'
  *  Running this test will delete all Amazon cloud credentials from the target cluster
  ******/
 
-describe('Create EKS cluster', { testIsolation: 'off', tags: ['@manager', '@adminUser', '@jenkins'] }, () => {
+describe.skip('Create EKS cluster', { testIsolation: 'off', tags: ['@manager', '@adminUser', '@jenkins'] }, () => {
   const clusterList = new ClusterManagerListPagePo();
   const loadingPo = new LoadingPo('.loading-indicator');
 

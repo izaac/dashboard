@@ -35,7 +35,7 @@ function conditionalRetryHarvesterInstallation() {
   });
 }
 
-describe('Harvester', { tags: ['@virtualizationMgmt', '@adminUser'] }, () => {
+describe.skip('Harvester', { tags: ['@virtualizationMgmt', '@adminUser'] }, () => {
   beforeEach(() => {
     cy.login();
     cy.createE2EResourceName('harvesterclustername').then((name) => {

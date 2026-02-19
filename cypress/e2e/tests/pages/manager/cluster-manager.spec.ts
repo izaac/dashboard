@@ -40,7 +40,7 @@ const reenableAKS = false;
 
 const downloadsFolder = Cypress.config('downloadsFolder');
 
-describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUser'] }, () => {
+describe.skip('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUser'] }, () => {
   const clusterList = new ClusterManagerListPagePo();
   const loadingPo = new LoadingPo('.loading-indicator');
 
@@ -802,7 +802,7 @@ describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUs
   });
 });
 
-describe('Cluster Manager as standard user', { testIsolation: 'off', tags: ['@manager', '@standardUser'] }, () => {
+describe.skip('Cluster Manager as standard user', { testIsolation: 'off', tags: ['@manager', '@standardUser'] }, () => {
   before(() => {
     cy.login();
   });

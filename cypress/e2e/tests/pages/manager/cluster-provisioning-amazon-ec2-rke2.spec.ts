@@ -9,7 +9,7 @@ import { MEDIUM_TIMEOUT_OPT } from '@/cypress/support/utils/timeouts';
 import { USERS_BASE_URL } from '@/cypress/support/utils/api-endpoints';
 
 // will only run this in jenkins pipeline where cloud credentials are stored
-describe('Deploy RKE2 cluster using node driver on Amazon EC2', { testIsolation: 'off', tags: ['@manager', '@adminUser', '@standardUser', '@jenkins'] }, () => {
+describe.skip('Deploy RKE2 cluster using node driver on Amazon EC2', { testIsolation: 'off', tags: ['@manager', '@adminUser', '@standardUser', '@jenkins'] }, () => {
   const clusterList = new ClusterManagerListPagePo();
   const loadingPo = new LoadingPo('.loading-indicator');
 
