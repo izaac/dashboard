@@ -29,7 +29,12 @@ describe('Ingresses', { testIsolation: 'off', tags: ['@explorer', '@adminUser'] 
     // testing https://github.com/rancher/dashboard/issues/11086
     cy.get('@consoleWarn').should('not.be.calledWith', warnMsg);
 
-    cy.title().should('eq', 'Rancher - local - Ingresses');
+    cy.getRancherVersion().then((version) => {
+      const expectedTitle = version.RancherPrime === 'true' ? 'Rancher Prime - local - Ingresses' : 'Rancher - local - Ingresses';
+
+      cy.log(`Expected title is: ${ expectedTitle }`);
+      cy.title().should('eq', expectedTitle);
+    });
   });
 
   it('can open "Edit as YAML"', () => {
@@ -74,8 +79,6 @@ describe('Ingresses', { testIsolation: 'off', tags: ['@explorer', '@adminUser'] 
 
     it('can select rules and certificates in Create mode', () => {
       cy.viewport(1440, 900);
-
-      cy.log('!!!!!!!!!!!!!!!!!!', namespace);
 
       ingressListPagePo.goTo();
       ingressListPagePo.waitForPage();
@@ -213,6 +216,12 @@ describe('Ingresses', { testIsolation: 'off', tags: ['@explorer', '@adminUser'] 
       ingressListPagePo.list().resourceTable().sortableTable().rowWithName(ingressName)
         .checkVisible();
     });
+
+    after('clean up namespaced resources', () => {
+      if (namespace) {
+        cy.deleteNamespace([namespace]);
+      }
+    });
   });
 
   describe('List', { tags: ['@noVai', '@adminUser'] }, () => {
@@ -290,7 +299,5 @@ describe('Ingresses', { testIsolation: 'off', tags: ['@explorer', '@adminUser'] 
 
   after('clean up', () => {
     cy.updateNamespaceFilter(cluster, 'none', '{"local":["all://user"]}');
-
-    cy.deleteNamespace([namespace]);
   });
 });
