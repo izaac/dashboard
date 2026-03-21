@@ -11,26 +11,31 @@ function interceptAndChangeVersion(version) {
   });
 }
 
-describe('App Bar Version Number', { testIsolation: 'off', tags: ['@generic', '@adminUser', '@standardUser'] }, () => {
+describe('App Bar Version Number', { testIsolation: 'off', tags: ['@onlyThis', '@generic', '@adminUser', '@standardUser'] }, () => {
   const nav = new ProductNavPo();
 
   before(() => {
     cy.login();
   });
 
-  it('app bar shows version number', () => {
+  // qaseId: 1199
+  it('app bar shows version number (Qase ID: 1199)', () => {
     HomePagePo.goTo();
 
     nav.version().checkExists();
-    nav.version().checkVisible();
+    nav.version().checkNotVisible();
   });
 
-  it('app bar shows short version number', () => {
+  // Note: Cypress will still auto-capture failure screenshots when a test fails.
+  // The Qase uploader in CI attaches those (and video when enabled).
+
+  // qaseId: 1200
+  it('app bar shows short version number (Qase ID: 1200)', () => {
     interceptAndChangeVersion('v2.9.0');
     HomePagePo.goTo();
 
     nav.version().checkExists();
-    nav.version().checkVisible();
+    nav.version().checkNotVisible();
     nav.version().checkVersion('v2.9');
     nav.version().checkNormalText();
   });

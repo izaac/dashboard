@@ -1,5 +1,6 @@
 import 'cypress-real-events/support';
 import '@cypress/code-coverage/support';
+import 'cypress-qase-reporter/support'; // Qase Network Profiler
 import './commands/commands';
 import './commands/chainable';
 import './commands/rancher-api-commands';

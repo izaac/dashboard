@@ -1,10 +1,17 @@
 #!/bin/bash
 
-set -x
 set -e
+set -o pipefail
+
+# Workaround to remove timestamps and metadata from corral logs
+# Automatically prepends 'corral' to the command
+# Format: time="..." level=info msg="Message" -> Message
+clean_corral() {
+  corral "$@" 2>&1 | sed -u -E 's/^time="[^"]*" level=[^ ]* msg="([^"]*)"/\1/'
+}
 
 if cat /etc/os-release | grep -iq "Alpine Linux"; then
- apk update && apk add --no-cache gcompat g++ make
+ apk update -q && apk add -q --no-cache gcompat g++ make
 fi
 
 OS="$(uname -s)"
@@ -43,65 +50,68 @@ KUBECTL_VERSION="${KUBECTL_VERSION:-v1.29.8}"
 YQ_BIN="mikefarah/yq/releases/latest/download/yq_linux_amd64"
 
 mkdir -p "${WORKSPACE}/bin"
-wget "${GITHUB_URL}${YQ_BIN}" -O "${WORKSPACE}/bin/yq"
+wget -q "${GITHUB_URL}${YQ_BIN}" -O "${WORKSPACE}/bin/yq"
 chmod +x "${WORKSPACE}/bin/yq"
 
 if [ -f "${CORRAL}" ]; then rm "${CORRAL}"; fi
-curl -L -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
+curl -sL -o "${CORRAL}" "${CORRAL_DOWNLOAD_BIN}"
 chmod +x "${CORRAL}"
 
-curl -L -o "${GO_PKG_FILENAME}" "${GO_DL_PACKAGE}"
-tar -C "${WORKSPACE}" -xzf "${GO_PKG_FILENAME}"
+curl -sL -o "${GO_PKG_FILENAME}" "${GO_DL_PACKAGE}"
+tar -C "${WORKSPACE}" -xzf "${GO_PKG_FILENAME}" > /dev/null 2>&1
 
-curl -sSL https://raw.githubusercontent.com/parleer/semver-bash/latest/semver -o semver
+curl -ssSL https://raw.githubusercontent.com/parleer/semver-bash/latest/semver -o semver
 chmod +x semver
 mv semver "${WORKSPACE}/bin"
 
-ls -al "${WORKSPACE}"
 export PATH=$PATH:"${WORKSPACE}/go/bin:${WORKSPACE}/bin"
 export GOROOT="${WORKSPACE}/go"
 echo "${PATH}"
 
 
-ls -al "${WORKSPACE}/go"
-go version
+go version > /dev/null 2>&1
 
 
 if [[ ! -d "${WORKSPACE}/.ssh" ]]; then mkdir -p "${WORKSPACE}/.ssh"; fi
 export PRIV_KEY="${WORKSPACE}/.ssh/jenkins_ecdsa"
 
 if [ -f "${PRIV_KEY}" ]; then rm "${PRIV_KEY}"; fi
-ssh-keygen -t ecdsa -b 521 -N "" -f "${PRIV_KEY}"
-ls -al "${WORKSPACE}/.ssh/"
+ssh-keygen -t ecdsa -b 521 -N "" -f "${PRIV_KEY}" > /dev/null 2>&1
 
-corral config --public_key "${PRIV_KEY}.pub" --user_id jenkins
-corral config vars set corral_user_public_key "$(cat ${PRIV_KEY}.pub)"
-corral config vars set corral_user_id jenkins
-corral config vars set aws_ssh_user "${AWS_SSH_USER}"
-corral config vars set aws_access_key "${AWS_ACCESS_KEY_ID}"
-corral config vars set aws_secret_key "${AWS_SECRET_ACCESS_KEY}"
-corral config vars set aws_ami "${AWS_AMI}"
-corral config vars set aws_region "${AWS_REGION}"
-corral config vars set aws_security_group "${AWS_SECURITY_GROUP}"
-corral config vars set aws_subnet "${AWS_SUBNET}"
-corral config vars set aws_vpc "${AWS_VPC}"
-corral config vars set aws_volume_size "${AWS_VOLUME_SIZE}"
-corral config vars set aws_volume_type "${AWS_VOLUME_TYPE}"
-corral config vars set volume_type "${AWS_VOLUME_TYPE}"
-corral config vars set volume_iops "${AWS_VOLUME_IOPS}"
-corral config vars set azure_subscription_id "${AZURE_AKS_SUBSCRIPTION_ID}"
-corral config vars set azure_client_id "${AZURE_CLIENT_ID}"
-corral config vars set azure_client_secret "${AZURE_CLIENT_SECRET}"
-corral config vars set create_initial_clusters "${CREATE_INITIAL_CLUSTERS}"
-corral config vars set gke_service_account "${GKE_SERVICE_ACCOUNT}"
-corral config vars set percy_token "${PERCY_TOKEN}"
+# Generate random prefix at top level so it's available for all job types
+prefix_random=$(cat /dev/urandom | env LC_ALL=C tr -dc 'a-z0-9' | fold -w 8 | head -n 1)
+
+clean_corral config --public_key "${PRIV_KEY}.pub" --user_id jenkins > /dev/null 2>&1
+clean_corral config vars set corral_user_public_key "$(cat ${PRIV_KEY}.pub)"
+clean_corral config vars set corral_user_id jenkins
+clean_corral config vars set aws_ssh_user "${AWS_SSH_USER}"
+clean_corral config vars set aws_access_key "${AWS_ACCESS_KEY_ID}"
+clean_corral config vars set aws_secret_key "${AWS_SECRET_ACCESS_KEY}"
+clean_corral config vars set aws_ami "${AWS_AMI}"
+clean_corral config vars set aws_region "${AWS_REGION}"
+clean_corral config vars set aws_security_group "${AWS_SECURITY_GROUP}"
+clean_corral config vars set aws_subnet "${AWS_SUBNET}"
+clean_corral config vars set aws_vpc "${AWS_VPC}"
+clean_corral config vars set aws_volume_size "${AWS_VOLUME_SIZE}"
+clean_corral config vars set aws_volume_type "${AWS_VOLUME_TYPE}"
+clean_corral config vars set volume_type "${AWS_VOLUME_TYPE}"
+clean_corral config vars set volume_iops "${AWS_VOLUME_IOPS}"
+clean_corral config vars set azure_subscription_id "${AZURE_AKS_SUBSCRIPTION_ID}"
+clean_corral config vars set azure_client_id "${AZURE_CLIENT_ID}"
+clean_corral config vars set azure_client_secret "${AZURE_CLIENT_SECRET}"
+clean_corral config vars set create_initial_clusters "${CREATE_INITIAL_CLUSTERS}"
+clean_corral config vars set gke_service_account "${GKE_SERVICE_ACCOUNT}"
+clean_corral config vars set percy_token "${PERCY_TOKEN}"
+clean_corral config vars set qase_automation_token "${QASE_AUTOMATION_TOKEN}"
+clean_corral config vars set qase_project "${QASE_PROJECT}"
+clean_corral config vars set qase_report "${QASE_REPORT}"
 
 create_initial_clusters() {
   shopt -u nocasematch
   if [[ -n "${RANCHER_IMAGE_TAG}" ]]; then
     TARFILE="helm-v${HELM_VERSION}-linux-amd64.tar.gz"
-    curl -L -o "${TARFILE}" "https://get.helm.sh/${TARFILE}"
-    tar -C "${WORKSPACE}/bin" --strip-components=1 -xzf "${TARFILE}"
+    curl -sL -o "${TARFILE}" "https://get.helm.sh/${TARFILE}"
+    tar -C "${WORKSPACE}/bin" --strip-components=1 -xzf "${TARFILE}" > /dev/null 2>&1
     
     # ============================================================================
     # Configure Helm Repositories and Chart URLs
@@ -116,7 +126,7 @@ create_initial_clusters() {
         HELM_REPO_NAME=rancher-prime
         helm repo add "${HELM_REPO_NAME}" "${RANCHER_CHART_URL}"
         helm repo update
-        corral config vars set rancher_image "registry.suse.com/rancher/rancher"
+        clean_corral config vars set rancher_image "registry.suse.com/rancher/rancher"
         RANCHER_CHART_REPO_FOR_CORRAL="prime"
       elif [[ "${RANCHER_HELM_REPO}" == "rancher-latest" ]]; then
         # Prime - staging (RC versions)
@@ -124,7 +134,7 @@ create_initial_clusters() {
         HELM_REPO_NAME=rancher-latest 
         helm repo add "${HELM_REPO_NAME}" "${RANCHER_CHART_URL}"
         helm repo update
-        corral config vars set rancher_image "stgregistry.suse.com/rancher/rancher"
+        clean_corral config vars set rancher_image "stgregistry.suse.com/rancher/rancher"
         RANCHER_CHART_REPO_FOR_CORRAL="latest"
       elif [[ "${RANCHER_HELM_REPO}" == "rancher-alpha" ]]; then
         # Prime alpha - staging
@@ -132,7 +142,7 @@ create_initial_clusters() {
         HELM_REPO_NAME=rancher-alpha 
         helm repo add "${HELM_REPO_NAME}" "${RANCHER_CHART_URL}"
         helm repo update
-        corral config vars set rancher_image "stgregistry.suse.com/rancher/rancher"
+        clean_corral config vars set rancher_image "stgregistry.suse.com/rancher/rancher"
         RANCHER_CHART_REPO_FOR_CORRAL="alpha"
       elif [[ "${RANCHER_HELM_REPO}" == "rancher-com-alpha" ]]; then
         # Community alpha - staging
@@ -157,13 +167,13 @@ create_initial_clusters() {
         RANCHER_CHART_REPO_FOR_CORRAL="latest"
       fi
       if [[ -n "${RANCHER_CHART_REPO_FOR_CORRAL:-}" ]]; then
-        corral config vars set rancher_chart_repo "${RANCHER_CHART_REPO_FOR_CORRAL}"
+        clean_corral config vars set rancher_chart_repo "${RANCHER_CHART_REPO_FOR_CORRAL}"
       else
-        corral config vars set rancher_chart_repo "${RANCHER_HELM_REPO}"
+        clean_corral config vars set rancher_chart_repo "${RANCHER_HELM_REPO}"
       fi
       # Extract base URL (up to server-charts)
       url_string=$(echo "${RANCHER_CHART_URL}" | grep -o '.*server-charts')
-      corral config vars set rancher_chart_url "${url_string}"
+      clean_corral config vars set rancher_chart_url "${url_string}"
     fi
     
     # ============================================================================
@@ -199,15 +209,15 @@ create_initial_clusters() {
        [ "${RANCHER_HELM_REPO}" = "rancher-alpha" ]; then
       if [[ "${RANCHER_HELM_REPO}" == "rancher-alpha" ]] || [[ "${RANCHER_HELM_REPO}" == "rancher-latest" ]]; then
         RANCHER_IMAGE_TAG_FOR_CORRAL="v${RANCHER_VERSION}"
-        corral config vars set rancher_image_tag "${RANCHER_IMAGE_TAG_FOR_CORRAL}"
-        corral config vars set env_var_map '["CATTLE_AGENT_IMAGE|stgregistry.suse.com/rancher/rancher-agent:'${RANCHER_IMAGE_TAG_FOR_CORRAL}', RANCHER_VERSION_TYPE|prime"]'
+        clean_corral config vars set rancher_image_tag "${RANCHER_IMAGE_TAG_FOR_CORRAL}"
+        clean_corral config vars set env_var_map '["CATTLE_AGENT_IMAGE|stgregistry.suse.com/rancher/rancher-agent:'${RANCHER_IMAGE_TAG_FOR_CORRAL}', RANCHER_VERSION_TYPE|prime"]'
       else
         RANCHER_IMAGE_TAG_FOR_CORRAL="v${RANCHER_VERSION}"
-        corral config vars set rancher_image_tag "${RANCHER_IMAGE_TAG_FOR_CORRAL}"
-        corral config vars set env_var_map '["CATTLE_AGENT_IMAGE|registry.suse.com/rancher/rancher-agent:'${RANCHER_IMAGE_TAG_FOR_CORRAL}', RANCHER_VERSION_TYPE|prime"]'
+        clean_corral config vars set rancher_image_tag "${RANCHER_IMAGE_TAG_FOR_CORRAL}"
+        clean_corral config vars set env_var_map '["CATTLE_AGENT_IMAGE|registry.suse.com/rancher/rancher-agent:'${RANCHER_IMAGE_TAG_FOR_CORRAL}', RANCHER_VERSION_TYPE|prime"]'
       fi
     else
-      corral config vars set rancher_image_tag "${RANCHER_IMAGE_TAG}"
+      clean_corral config vars set rancher_image_tag "${RANCHER_IMAGE_TAG}"
     fi
   fi
   
@@ -228,56 +238,49 @@ create_initial_clusters() {
   echo $'manifest:\n  name: custom-node\ndescription: custom generated node\ntemplates:\n  - aws/nodes\nvariables:\n  instance_type:\n    - t3a.xlarge' > packages/aws/custom-node.yaml
 
   yq -i e ".variables.kubernetes_version += [\"${K3S_KUBERNETES_VERSION}\"] | .variables.kubernetes_version style=\"literal\"" packages/aws/k3s.yaml
-  cat packages/aws/rancher-k3s.yaml
-  ls -al packages/aws/
-  cat packages/aws/dashboard-tests.yaml
-  cat packages/aws/custom-node.yaml
 
-  prefix_random=$(cat /dev/urandom | env LC_ALL=C tr -dc 'a-z0-9' | fold -w 8 | head -n 1)
-
-  corral config vars set bootstrap_password "${BOOTSTRAP_PASSWORD:-password}"
-  corral config vars set aws_route53_zone "${AWS_ROUTE53_ZONE}"
-  corral config vars set server_count "${SERVER_COUNT:-3}"
-  corral config vars set agent_count "${AGENT_COUNT:-0}"
-  corral config vars delete rancher_host
+  clean_corral config vars set bootstrap_password "${BOOTSTRAP_PASSWORD:-password}"
+  clean_corral config vars set aws_route53_zone "${AWS_ROUTE53_ZONE}"
+  clean_corral config vars set server_count "${SERVER_COUNT:-3}"
+  clean_corral config vars set agent_count "${AGENT_COUNT:-0}"
+  clean_corral config vars delete rancher_host
   if [[ "${JOB_TYPE}" == "recurring" ]]; then
     RANCHER_HOST="jenkins-${prefix_random}.${AWS_ROUTE53_ZONE}"
   fi
 
   K3S_KUBERNETES_VERSION="${K3S_KUBERNETES_VERSION//+/-}"
-  make init
-  make build
-  ls -al dist
-  corral config vars set node_count 1
-  corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-c"
-  corral config vars delete instance_type
-  corral config vars set bastion_ip ""
+  make init > /dev/null 2>&1
+  make build > /dev/null 2>&1
+  clean_corral config vars set node_count 1
+  clean_corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-c"
+  clean_corral config vars delete instance_type
+  clean_corral config vars set bastion_ip ""
 
   echo "Custom Node for RKE2 Cluster"
-  corral create --skip-cleanup --recreate --debug customnode \
-    "dist/aws-t3a.xlarge"
-  corral config vars set custom_node_ip "$(corral vars customnode first_node_ip)"
-  corral config vars set custom_node_key "$(corral vars customnode corral_private_key | base64 -w 0)"
+  clean_corral create --skip-cleanup --recreate customnode \
+    "dist/aws-t3a.xlarge" > /dev/null 2>&1
+  clean_corral config vars set custom_node_ip "$(corral vars customnode first_node_ip)"
+  clean_corral config vars set custom_node_key "$(corral vars customnode corral_private_key | base64 -w 0)"
 
   echo "Custom Node for RKE1 Cluster"
-  corral create --skip-cleanup --recreate --debug customnoderke1 \
-    "dist/aws-t3a.xlarge"
-  corral config vars set custom_node_ip_rke1 "$(corral vars customnoderke1 first_node_ip)"
-  corral config vars set custom_node_key_rke1 "$(corral vars customnoderke1 corral_private_key | base64 -w 0)"
+  clean_corral create --skip-cleanup --recreate customnoderke1 \
+    "dist/aws-t3a.xlarge" > /dev/null 2>&1
+  clean_corral config vars set custom_node_ip_rke1 "$(corral vars customnoderke1 first_node_ip)"
+  clean_corral config vars set custom_node_key_rke1 "$(corral vars customnoderke1 corral_private_key | base64 -w 0)"
   
-  corral config vars set instance_type "${AWS_INSTANCE_TYPE}"
-  corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
+  clean_corral config vars set instance_type "${AWS_INSTANCE_TYPE}"
+  clean_corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
   echo "Corral Package string: ${K3S_KUBERNETES_VERSION}-${RANCHER_VERSION//v}-${CERT_MANAGER_VERSION}"
-  corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-i"
-  corral config vars set server_count 1
-  corral create --skip-cleanup --recreate --debug importcluster \
-    "dist/aws-k3s-${K3S_KUBERNETES_VERSION}"
-  corral config vars set imported_kubeconfig $(corral vars importcluster kubeconfig)
-  corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
-  corral config vars set server_count "${SERVER_COUNT:-3}"
+  clean_corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-i"
+  clean_corral config vars set server_count 1
+  clean_corral create --skip-cleanup --recreate importcluster \
+    "dist/aws-k3s-${K3S_KUBERNETES_VERSION}" > /dev/null 2>&1
+  clean_corral config vars set imported_kubeconfig $(corral vars importcluster kubeconfig)
+  clean_corral config vars set aws_hostname_prefix "jenkins-${prefix_random}"
+  clean_corral config vars set server_count "${SERVER_COUNT:-3}"
   if [[ "${JOB_TYPE}" == "recurring" ]]; then
-    corral create --skip-cleanup --recreate --debug rancher \
-      "dist/aws-k3s-rancher-${K3S_KUBERNETES_VERSION}-${RANCHER_VERSION//v}-${CERT_MANAGER_VERSION}"
+    clean_corral create --skip-cleanup --recreate rancher \
+      "dist/aws-k3s-rancher-${K3S_KUBERNETES_VERSION}-${RANCHER_VERSION//v}-${CERT_MANAGER_VERSION}" > /dev/null 2>&1
   fi
 }
 
@@ -298,12 +301,12 @@ fi
 
 echo "Rancher type: ${RANCHER_TYPE}"
 
-if semver lt "${RANCHER_VERSION}" "2.9.99" && [[ "${RANCHER_IMAGE_TAG}" != "head" ]]; then NODEJS_VERSION="16.20.2"; fi
+if semver lt "${RANCHER_VERSION}" "2.9.99" > /dev/null 2>&1 && [[ "${RANCHER_IMAGE_TAG}" != "head" ]]; then NODEJS_VERSION="16.20.2"; fi
 
-corral config vars set rancher_type "${RANCHER_TYPE}"
-corral config vars set nodejs_version "${NODEJS_VERSION}"
-corral config vars set dashboard_repo "${DASHBOARD_REPO}"
-corral config vars set dashboard_branch "${DASHBOARD_BRANCH}"
+clean_corral config vars set rancher_type "${RANCHER_TYPE}"
+clean_corral config vars set nodejs_version "${NODEJS_VERSION}"
+clean_corral config vars set dashboard_repo "${DASHBOARD_REPO}"
+clean_corral config vars set dashboard_branch "${DASHBOARD_BRANCH}"
 
 # Exclude tagged E2E tests that don't apply to Rancher build:
 # - @noVai: Jenkins pipeline runs against Vai-enabled Rancher; skip tests that assume Vai is off
@@ -318,7 +321,7 @@ if [[ -n "${CYPRESS_TAGS}" ]]; then
     CYPRESS_TAGS="${CYPRESS_TAGS}+-@noVai+-@prime"
   fi
 fi
-corral config vars set cypress_tags "${CYPRESS_TAGS}"
+clean_corral config vars set cypress_tags "${CYPRESS_TAGS}"
 
 # Save all values to a file for the Slack notification script
 cat > "${WORKSPACE}/notification_values.txt" << EOF
@@ -329,38 +332,40 @@ RANCHER_HELM_REPO=${RANCHER_HELM_REPO}
 HELM_REPO_NAME=${HELM_REPO_NAME:-}
 CYPRESS_TAGS=${CYPRESS_TAGS}
 EOF
-corral config vars set cypress_version "${CYPRESS_VERSION}"
-corral config vars set yarn_version "${YARN_VERSION}"
-corral config vars set kubectl_version "${KUBECTL_VERSION}"
+clean_corral config vars set cypress_version "${CYPRESS_VERSION}"
+clean_corral config vars set yarn_version "${YARN_VERSION}"
+clean_corral config vars set kubectl_version "${KUBECTL_VERSION}"
 
 if [[ -n "${RANCHER_USERNAME}" ]]; then
-   corral config vars set rancher_username "${RANCHER_USERNAME}"
+   clean_corral config vars set rancher_username "${RANCHER_USERNAME}"
 fi
 
 if [[ -n "${RANCHER_PASSWORD}" ]]; then
-   corral config vars set rancher_password "${RANCHER_PASSWORD}"
+   clean_corral config vars set rancher_password "${RANCHER_PASSWORD}"
 fi
 
 if [[ -n "${RANCHER_HOST}" ]]; then
-   corral config vars set rancher_host "${RANCHER_HOST}"
+   clean_corral config vars set rancher_host "${RANCHER_HOST}"
 fi
 
 if [[ -n "${CHROME_VERSION}" ]]; then
-   corral config vars set chrome_version "${CHROME_VERSION}"
+   clean_corral config vars set chrome_version "${CHROME_VERSION}"
 fi
 
 cd "${WORKSPACE}/corral-packages"
-make init
-make build
-echo "${PWD}"
+make init > /dev/null 2>&1
+make build > /dev/null 2>&1
 chmod -R 766 "${WORKSPACE}/corral-packages"
-corral config vars set node_count 1
-corral config vars set bastion_ip ""
-corral config vars delete instance_type
-corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-ci"
-corral create --skip-cleanup --recreate --debug ci dist/aws-dashboard-tests-t3a.xlarge
-corral config vars -o yaml
+clean_corral config vars set node_count 1
+clean_corral config vars set bastion_ip ""
+clean_corral config vars delete instance_type
+clean_corral config vars set aws_hostname_prefix "jenkins-${prefix_random}-ci"
+
+# Un-wrapped for debugging environmental setup failure
+corral create --skip-cleanup --recreate ci dist/aws-dashboard-tests-t3a.xlarge
+
+clean_corral config vars -o yaml
 corral vars ci corral_private_key -o yaml
 NODE_EXTERNAL_IP="$(corral vars ci first_node_ip)"
 cd "${WORKSPACE}"
-echo "${PWD}"
+echo "${PATH}"

@@ -25,7 +25,8 @@ node {
       params.each {
         paramsMap << "$it.key=$it.value"
       }
-      withCredentials([ string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+      withCredentials([ string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
                         string(credentialsId: 'AZURE_AKS_SUBSCRIPTION_ID', variable: 'AZURE_AKS_SUBSCRIPTION_ID'),
                         string(credentialsId: 'AZURE_CLIENT_ID', variable: 'AZURE_CLIENT_ID'),
@@ -62,8 +63,6 @@ node {
               }
               stage('Run Tests') {
                 try {
-                  sh 'pwd'
-                  sh 'ls -al cypress/jenkins'
                   sh 'cypress/jenkins/init.sh'
                 } catch (err) {
                   echo "Error: " + err
@@ -78,7 +77,7 @@ node {
               stage('Grab Results') {
                 // Safe to run even if init.sh failed (scp fails gracefully)
                 sh "cypress/jenkins/scpget.sh dashboard/results.xml || true"
-                sh "cypress/jenkins/scpget.sh dashboard/cypress/reports/html/* html"
+                sh "cypress/jenkins/scpget.sh dashboard/cypress/reports/html/* html || true"
               }
               if ("${env.CLEANUP}".toLowerCase() == "true") {
                 stage('Clean Test Environment') {  
@@ -129,30 +128,16 @@ node {
                 }
                 currentBuild.result = 'UNSTABLE'
               }
-              if ("${env.QASE_REPORT}".toLowerCase() == "true") {
-                  try {
-                    stage('Publish to TC Management') {
-                      withCredentials([ string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN')]) {
-                        withEnv(["BUILDTYPE=${buildtype}"]) {
-                          sh "cypress/jenkins/transform-junit.sh"
-                        }
-                      }
-                    }
-                  } catch(err) {
-                      echo "Error: " + err
-                      currentBuild.result = 'UNSTABLE'
-                  }
-              }
-              
-              // test failure -> FAILURE (Slack: FAILED)
-              // pipeline/env failure -> UNSTABLE
-              if (currentBuild.result == 'UNSTABLE' || testExecutionResult == 'FAILURE') {
-                  if ("${env.SLACK_NOTIFICATION}".toLowerCase() != "false") {
-                      withEnv(["SLACK_BUILD_STATUS=${testExecutionResult == 'FAILURE' ? 'FAILURE' : 'UNSTABLE'}"]) {
-                          sh 'cypress/jenkins/slack-notification.sh $SLACK_BUILD_STATUS'
-                      }
-                  }
-              }
+            }
+        }
+        
+        // test failure -> FAILURE (Slack: FAILED)
+        // pipeline/env failure -> UNSTABLE
+        if (currentBuild.result == 'UNSTABLE' || testExecutionResult == 'FAILURE') {
+            if ("${env.SLACK_NOTIFICATION}".toLowerCase() != "false") {
+                withEnv(["SLACK_BUILD_STATUS=${testExecutionResult == 'FAILURE' ? 'FAILURE' : 'UNSTABLE'}"]) {
+                    sh 'cypress/jenkins/slack-notification.sh $SLACK_BUILD_STATUS'
+                }
             }
         }
       }

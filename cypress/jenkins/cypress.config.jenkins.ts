@@ -61,6 +61,8 @@ if (apiUrl && !baseUrl.startsWith(apiUrl)) {
 
 console.log('');
 
+const qaseEnabled = (process.env.QASE_REPORT === 'true' || process.env.qase_report === 'true') && !!(process.env.QASE_AUTOMATION_TOKEN || process.env.qase_automation_token);
+
 /**
  * CONFIGURATION
  */
@@ -100,7 +102,22 @@ export default defineConfig({
   // Jenkins reporters configuration jUnit and HTML
   reporter:        'cypress-multi-reporters',
   reporterOptions: {
-    reporterEnabled:                   'cypress-mochawesome-reporter, mocha-junit-reporter',
+    reporterEnabled:                    qaseEnabled ? 'cypress-qase-reporter, cypress-mochawesome-reporter, mocha-junit-reporter' : 'cypress-mochawesome-reporter, mocha-junit-reporter',
+    cypressQaseReporterReporterOptions: {
+      mode:      qaseEnabled ? 'testops' : 'off',
+      debug:     false,
+      logging:   false,
+      profilers: ['network'], // Enable HTTP request capturing
+      testops:   {
+        api:               { token: process.env.QASE_AUTOMATION_TOKEN || process.env.qase_automation_token },
+        project:           process.env.QASE_PROJECT || process.env.qase_project || 'SANDBOX',
+        uploadAttachments: true,
+        run:               {
+          title:    `Cypress Automated Run - ${ new Date().toISOString() }`,
+          complete: true,
+        },
+      },
+    },
     mochaJunitReporterReporterOptions: {
       mochaFile:      'cypress/jenkins/reports/junit/junit-[hash].xml',
       toConsole:      true,
@@ -111,8 +128,79 @@ export default defineConfig({
   },
   e2e: {
     setupNodeEvents(on, config) {
+      // Toggle artifact debug mode (screenshots/videos) via --env artifactsDebug=true
+      const artifactsDebug = !!config.env?.artifactsDebug || process.env.ARTIFACTS_DEBUG === 'true';
+
+      // Prefer dynamic control of video based on debug flag
+      config.video = !!artifactsDebug;
+
       require('cypress-mochawesome-reporter/plugin')(on);
       require('@cypress/grep/src/plugin')(config);
+
+      if (qaseEnabled) {
+        // Clear Qase reporter persisted state so it doesn't force QASE_MODE=off across runs
+        try {
+          const { StateManager } = require('qase-javascript-commons/dist/state/state');
+
+          StateManager.clearState();
+        } catch (e) {
+          // ignore
+        }
+
+        // Enable Qase reporter plugin (handles run creation and result publishing)
+        try {
+          require('cypress-qase-reporter/package.json');
+        } catch (e) {
+          // ignore
+        }
+        try {
+          const qaseOptions = config.reporterOptions.cypressQaseReporterReporterOptions;
+
+          require('cypress-qase-reporter/plugin')(on, config, qaseOptions);
+        } catch (e) {
+          console.error('Failed to register Qase reporter plugin:', e?.message || e);
+        }
+        try {
+          require('cypress-qase-reporter/metadata')(on);
+        } catch (e) {
+          // metadata optional
+        }
+
+        // Ensure run gets created; skip if already present
+        on('before:run', async() => {
+          if (!process.env.QASE_TESTOPS_RUN_ID) {
+            try {
+              const { beforeRunHook } = require('cypress-qase-reporter/hooks');
+
+              await beforeRunHook(config);
+            } catch (e) {
+              console.log('Qase beforeRunHook error:', e?.message || e);
+            }
+          }
+        });
+
+        on('after:spec', async(spec, results) => {
+          try {
+            const { afterSpecHook } = require('cypress-qase-reporter/hooks');
+
+            await afterSpecHook(spec, config);
+          } catch (e) {
+            console.log('Qase afterSpecHook error:', e?.message || e);
+          }
+        });
+
+        on('after:run', async() => {
+          if (process.env.QASE_TESTOPS_RUN_ID) {
+            try {
+              const { afterRunHook } = require('cypress-qase-reporter/hooks');
+
+              await afterRunHook(config);
+            } catch (e) {
+              console.log('Qase afterRunHook error:', e?.message || e);
+            }
+          }
+        });
+      }
 
       // Load Accessibility plugin if configured
       if (process.env.TEST_A11Y) {
@@ -139,7 +227,8 @@ export default defineConfig({
     specPattern:                  testDirs,
     baseUrl
   },
-  video:               false,
-  videoCompression:    25,
-  videoUploadOnPasses: false,
+  video:                  false,
+  videoCompression:       25,
+  videoUploadOnPasses:    false,
+  screenshotOnRunFailure: true,
 });

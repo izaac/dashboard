@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -x
 
 export PATH=$PATH:"${WORKSPACE}/bin"
 
@@ -24,5 +23,5 @@ if [[ $# -gt 1 ]]; then
   mkdir -p "$2"
 fi
 
-scp -r -i ${PRIV_KEY} -o StrictHostKeyChecking=no \
+scp -q -r -i ${PRIV_KEY} -o StrictHostKeyChecking=no \
   -o UserKnownHostsFile=/dev/null "root@${NODE_EXTERNAL_IP}:$1" "${REPORT_DIR}"
