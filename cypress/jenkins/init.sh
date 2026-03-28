@@ -24,126 +24,6 @@ QA_INFRA_BRANCH="${QA_INFRA_BRANCH:-main}"
 QA_INFRA_DIR="${JENKINS_WORKSPACE}/qa-infra-automation"
 
 ###############################################################################
-# TEMPORARY: Executor environment diagnostic (remove after investigation)
-###############################################################################
-executor_diagnostic() {
-  local diag_file="${OUTPUTS_DIR}/executor-diagnostic.txt"
-  echo "==============================================================="
-  echo " EXECUTOR DIAGNOSTIC — $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  echo "==============================================================="
-
-  {
-    echo "=== OS ==="
-    cat /etc/os-release 2>/dev/null || echo "no /etc/os-release"
-    uname -a
-    echo ""
-
-    echo "=== User & Permissions ==="
-    echo "USER=$(whoami) HOME=${HOME} SHELL=${SHELL:-unknown}"
-    id
-    groups 2>/dev/null || true
-    echo "sudo access: $(sudo -n true 2>&1 && echo 'YES' || echo 'NO (or password required)')"
-    echo ""
-
-    echo "=== Hardware ==="
-    echo "CPUs: $(nproc 2>/dev/null || echo unknown)"
-    free -h 2>/dev/null || echo "free not available"
-    df -h / "${HOME}" 2>/dev/null || true
-    echo ""
-
-    echo "=== Display / X11 ==="
-    echo "DISPLAY=${DISPLAY:-<unset>}"
-    for cmd in Xvfb xvfb-run xdpyinfo; do
-      echo "${cmd}: $(command -v ${cmd} 2>/dev/null || echo 'not found')"
-    done
-    echo ""
-
-    echo "=== Browsers ==="
-    for cmd in google-chrome google-chrome-stable chromium chromium-browser firefox; do
-      local path
-      path=$(command -v "${cmd}" 2>/dev/null || true)
-      if [[ -n "${path}" ]]; then
-        echo "${cmd}: ${path} — $("${cmd}" --version 2>/dev/null || echo 'version unknown')"
-      else
-        echo "${cmd}: not found"
-      fi
-    done
-    echo ""
-
-    echo "=== Key Binaries ==="
-    for cmd in node npm yarn npx python3 python pip pip3 git docker kubectl helm \
-               jq curl wget tar xz unzip apt-get yum dnf snap uv ansible ansible-playbook \
-               tofu terraform ssh ssh-keygen base64; do
-      local path
-      path=$(command -v "${cmd}" 2>/dev/null || true)
-      if [[ -n "${path}" ]]; then
-        local ver
-        ver=$("${cmd}" --version 2>/dev/null | head -1 || echo "")
-        echo "${cmd}: ${path} ${ver}"
-      else
-        echo "${cmd}: not found"
-      fi
-    done
-    echo ""
-
-    echo "=== Cypress Cache ==="
-    if [[ -d "${HOME}/.cache/Cypress" ]]; then
-      ls -la "${HOME}/.cache/Cypress/" 2>/dev/null
-      du -sh "${HOME}/.cache/Cypress/" 2>/dev/null || true
-    else
-      echo "No Cypress cache at ${HOME}/.cache/Cypress"
-    fi
-    echo ""
-
-    echo "=== Yarn / npm Cache ==="
-    yarn cache dir 2>/dev/null && du -sh "$(yarn cache dir 2>/dev/null)" 2>/dev/null || echo "yarn cache: unknown"
-    npm cache ls --cache 2>/dev/null | head -3 || echo "npm cache: unknown or not available"
-    echo ""
-
-    echo "=== Docker ==="
-    docker info 2>/dev/null | grep -E "Server Version|Storage Driver|Operating System|Total Memory|CPUs" || echo "docker info: unavailable"
-    echo "Images:"
-    docker images --format "  {{.Repository}}:{{.Tag}} {{.Size}}" 2>/dev/null | head -20 || echo "  unavailable"
-    echo ""
-
-    echo "=== Chrome Dependencies (dpkg) ==="
-    dpkg -l 2>/dev/null | grep -iE "libx11|libxcomposite|libxdamage|libxrandr|libgbm|libnss|libatk|libcups|libdrm|libgtk|libpango|libasound|libxss|fonts-liberation|xdg-utils" | awk '{print "  "$2" "$3}' || echo "  dpkg not available"
-    echo ""
-
-    echo "=== Google Chrome APT repo ==="
-    ls /etc/apt/sources.list.d/ 2>/dev/null | grep -i google || echo "  no google apt source found"
-    apt-cache policy google-chrome-stable 2>/dev/null | head -5 || echo "  apt-cache: unavailable"
-    echo ""
-
-    echo "=== PATH ==="
-    echo "${PATH}" | tr ':' '\n'
-    echo ""
-
-    echo "=== HOME directory ==="
-    ls -la "${HOME}/" 2>/dev/null | head -30
-    echo ""
-
-    echo "=== Environment (filtered) ==="
-    env | grep -iE "^(JENKINS|NODE_|BUILD_|WORKSPACE|JOB_|EXECUTOR|HUDSON|JAVA|TERM|LANG|LC_|DISPLAY|XDG)" | sort || true
-    echo ""
-
-    echo "=== /tmp and /var/tmp space ==="
-    df -h /tmp /var/tmp 2>/dev/null || true
-    echo ""
-
-    echo "=== Installed packages count ==="
-    echo "dpkg: $(dpkg --list 2>/dev/null | wc -l) packages"
-    echo "snap: $(snap list 2>/dev/null | wc -l) packages" || true
-    echo ""
-
-  } 2>&1 | tee "${diag_file}"
-
-  echo ""
-  echo "[diagnostic] Full output saved to ${diag_file}"
-  echo "==============================================================="
-}
-
-###############################################################################
 # Install and verify prerequisites (Ubuntu/Debian executor)
 ###############################################################################
 install_prerequisites() {
@@ -335,11 +215,15 @@ CREATE_INITIAL_CLUSTERS="${CREATE_INITIAL_CLUSTERS:-yes}"
 
 # Test-runner vars (passed through to run.sh / Docker container)
 CYPRESS_TAGS="${CYPRESS_TAGS:-@adminUser}"
+###############################################################################
+# Pinned versions — keep in sync with cypress-io/cypress-docker-images factory
+# https://github.com/cypress-io/cypress-docker-images/blob/master/factory/.env
+###############################################################################
 CYPRESS_VERSION="${CYPRESS_VERSION:-11.1.0}"
-NODEJS_VERSION="${NODEJS_VERSION:-20.17.0}"
+NODEJS_VERSION="${NODEJS_VERSION:-24.14.0}"
 YARN_VERSION="${YARN_VERSION:-1.22.22}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-v1.29.8}"
-CHROME_VERSION="${CHROME_VERSION:-140.0.7339.127-1}"
+CHROME_VERSION="${CHROME_VERSION:-146.0.7680.164-1}"
 DASHBOARD_REPO="${DASHBOARD_REPO:-rancher/dashboard.git}"
 # TODO: remove DASHBOARD_BRANCH after job YAML update — use BRANCH everywhere
 DASHBOARD_BRANCH="${DASHBOARD_BRANCH:-${BRANCH:-master}}"
@@ -701,9 +585,6 @@ destroy_all() {
 # MAIN
 ###############################################################################
 main() {
-  # TEMPORARY: Capture executor state before any installs (remove after investigation)
-  executor_diagnostic
-
   install_prerequisites
 
   echo "============================================================"

@@ -6,17 +6,44 @@ set -e
 # Source the local configuration file to generate .env
 source cypress/jenkins/configure.sh
 
+###############################################################################
+# Pinned versions — keep in sync with cypress-io/cypress-docker-images factory
+# https://github.com/cypress-io/cypress-docker-images/blob/master/factory/.env
+###############################################################################
 NODEJS_VERSION="${NODEJS_VERSION:-24.14.0}"
 NODEJS_DOWNLOAD_URL="https://nodejs.org/dist"
 NODEJS_FILE="node-v${NODEJS_VERSION}-linux-x64.tar.xz"
 YARN_VERSION="${YARN_VERSION:-1.22.22}"
 CYPRESS_VERSION="${CYPRESS_VERSION:-11.1.0}"
-CHROME_VERSION="${CHROME_VERSION:-}"
+CHROME_VERSION="${CHROME_VERSION:-146.0.7680.164-1}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-v1.29.8}"
 GITHUB_URL="https://github.com/"
 DASHBOARD_REPO="${DASHBOARD_REPO:-rancher/dashboard}"
 
 exit_code=0
+
+###############################################################################
+# Install Node.js early so we can use TypeScript scripts before Docker build
+###############################################################################
+install_node() {
+	if command -v node &>/dev/null; then
+		echo "[install_node] Node.js already available: $(node --version)"
+		return 0
+	fi
+
+	echo "[install_node] Installing Node.js ${NODEJS_VERSION}..."
+	if [ -f "${HOME}/${NODEJS_FILE}" ]; then rm -f "${HOME}/${NODEJS_FILE}"; fi
+	curl -L --silent -o "${HOME}/${NODEJS_FILE}" \
+		"${NODEJS_DOWNLOAD_URL}/v${NODEJS_VERSION}/${NODEJS_FILE}"
+
+	NODE_INSTALL_DIR="${HOME}/nodejs"
+	mkdir -p "${NODE_INSTALL_DIR}"
+	tar -xJf "${HOME}/${NODEJS_FILE}" -C "${NODE_INSTALL_DIR}"
+	export PATH="${NODE_INSTALL_DIR}/node-v${NODEJS_VERSION}-linux-x64/bin:${PATH}"
+	echo "[install_node] Installed: $(node --version)"
+}
+
+install_node
 
 wait_for_dashboard_ui() {
 	local host=$1
@@ -75,24 +102,16 @@ build_image() {
 	fi
 	shopt -u nocasematch
 
-	if [ -f "${NODEJS_FILE}" ]; then rm -r "${NODEJS_FILE}"; fi
-	curl -L --silent -o "${NODEJS_FILE}" \
-		"${NODEJS_DOWNLOAD_URL}/v${NODEJS_VERSION}/${NODEJS_FILE}"
-
-	NODE_PATH="${HOME}/nodejs"
-	mkdir -p "${NODE_PATH}"
-	tar -xJf "${NODEJS_FILE}" -C "${NODE_PATH}"
-	export PATH="${NODE_PATH}/node-v${NODEJS_VERSION}-linux-x64/bin:${PATH}"
+	# Node.js is already installed by install_node() — just ensure yarn is available
+	npm install -g yarn@"${YARN_VERSION}" --silent 2>/dev/null
 
 	cd "${HOME}"/dashboard
-
-	npm install -g yarn@"${YARN_VERSION}"
 	yarn config set ignore-engines true --silent
 
 	yarn cache clean 2>/dev/null || true
 	yarn install --frozen-lockfile
 
-	# Debugging node_modules
+	# Verify critical dependency
 	if [ -d "node_modules/cypress-multi-reporters" ]; then
 		echo "Reporter found in dashboard/node_modules"
 	else
@@ -105,11 +124,10 @@ build_image() {
 
 	cd "${HOME}"
 
-	DOCKERFILE_PATH="dashboard/cypress/jenkins"
 	ENTRYPOINT_FILE_PATH="dashboard/cypress/jenkins"
 	sed -i "s/CYPRESSTAGS/${CYPRESS_TAGS:-}/g" ${ENTRYPOINT_FILE_PATH}/cypress.sh
 
-	docker build --quiet -f "${DOCKERFILE_PATH}/Dockerfile.ci" \
+	docker build --quiet -f "${ENTRYPOINT_FILE_PATH}/Dockerfile.ci" \
 		--build-arg YARN_VERSION="${YARN_VERSION}" \
 		--build-arg NODE_VERSION="${NODEJS_VERSION}" \
 		--build-arg CYPRESS_VERSION="${CYPRESS_VERSION}" \
@@ -122,64 +140,19 @@ build_image() {
 }
 
 rancher_init() {
-	RANCHER_HOST=$1
-	new_password="$3"
+	local rancher_host=$1
+	local rancher_password="$3"
 
-	echo "[rancher_init] Logging in as admin..."
-	rancher_token=$(curl -s -k -X POST "https://${RANCHER_HOST}/v3-public/localProviders/local?action=login" \
-		-H "Content-Type: application/json" \
-		-d "{\"username\":\"admin\",\"password\": \"${new_password}\"}" | grep -o '"token":"[^"]*' | grep -o '[^"]*$')
-	echo "[rancher_init] token obtained: ${rancher_token:+yes}"
+	echo "[rancher_init] Running rancher-setup.ts..."
+	local setup_output
+	setup_output=$(node --experimental-strip-types cypress/jenkins/rancher-setup.ts \
+		--host "${rancher_host}" \
+		--password "${rancher_password}" \
+		--rancher-password "${RANCHER_PASSWORD:-password}")
 
-	echo "[rancher_init] Creating standard_user with password from RANCHER_PASSWORD=${RANCHER_PASSWORD:+[set]}..."
-	create_user_response=$(curl -s -k -X POST "https://${RANCHER_HOST}/v3/users" \
-		-H "Authorization: Bearer ${rancher_token}" \
-		-H 'Content-Type: application/json' \
-		-d "{\"enabled\": true, \"mustChangePassword\": false, \"password\": \"${RANCHER_PASSWORD:-password}\", \"username\": \"standard_user\"}")
-	echo "[rancher_init] create user response: ${create_user_response}"
-	user_id=$(echo "${create_user_response}" | grep -o '"id":"[^"]*' | grep -o '[^"]*$')
-	echo "[rancher_init] user_id: ${user_id}"
-
-	echo "[rancher_init] Creating globalRoleBinding..."
-	curl -s -k -X POST "https://${RANCHER_HOST}/v3/globalrolebindings" \
-		-H "Authorization: Bearer ${rancher_token}" \
-		-H 'Content-Type: application/json' \
-		-d "{\"globalRoleId\": \"user\", \"type\": \"globalRoleBinding\", \"userId\": \"${user_id}\"}"
-
-	echo ""
-	echo "[rancher_init] Getting Default project..."
-	project_id=$(curl -s -k "https://${RANCHER_HOST}/v3/projects?name=Default&clusterId=local" \
-		-H "Authorization: Bearer ${rancher_token}" \
-		-H 'Content-Type: application/json' | grep -o '"id":"[^"]*' | grep -o '[^"]*$')
-	echo "[rancher_init] project_id: ${project_id}"
-
-	echo "[rancher_init] Creating projectRoleTemplateBinding..."
-	curl -s -k -X POST "https://${RANCHER_HOST}/v3/projectroletemplatebindings" \
-		-H "Authorization: Bearer ${rancher_token}" \
-		-H 'Content-Type: application/json' \
-		-d "{\"type\": \"projectroletemplatebinding\", \"roleTemplateId\": \"project-member\", \"projectId\": \"${project_id}\", \"userId\": \"${user_id}\"}"
-
-	echo ""
-	echo "[rancher_init] Verifying standard_user can log in..."
-	login_check=$(curl -s -k -o /dev/null -w "%{http_code}" -X POST "https://${RANCHER_HOST}/v3-public/localProviders/local?action=login" \
-		-H "Content-Type: application/json" \
-		-d "{\"username\":\"standard_user\",\"password\": \"${RANCHER_PASSWORD:-password}\"}")
-	echo "[rancher_init] standard_user login HTTP status: ${login_check}"
-
-	branch_from_rancher=$(curl -s -k -X GET "https://${RANCHER_HOST}/v1/management.cattle.io.settings" \
-		-H "Accept: application/json" \
-		-H "Authorization: Bearer ${rancher_token}" | grep -o '"default":"[^"]*' | grep -o '[^"]*$' | grep release- | sed -E 's/^\s*.*:\/\///g' | cut -d'/' -f 3 | tail -n 1)
-
-	if [[ -z "${branch_from_rancher}" ]]; then
-		is_it_latest=$(curl -s -k -X GET "https://${RANCHER_HOST}/dashboard/about" \
-			-H "Accept: text/html,application/xhtml+xml,application/xml" \
-			-H "Authorization: Bearer ${rancher_token}" | grep -q "dashboard/latest/") || is_it_latest=1
-		if [[ ${is_it_latest} -eq 1 ]]; then
-			exit 1
-		else
-			branch_from_rancher="master"
-		fi
-	fi
+	# Parse output: BRANCH_FROM_RANCHER=<branch>
+	branch_from_rancher=$(echo "${setup_output}" | grep '^BRANCH_FROM_RANCHER=' | cut -d= -f2-)
+	echo "[rancher_init] branch_from_rancher=${branch_from_rancher}"
 }
 
 DOCKER_NAME_ARG=()
