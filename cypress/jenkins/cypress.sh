@@ -20,7 +20,7 @@ export PERCY_LOGLEVEL=warn
 export PERCY_SKIP_UPDATE_CHECK=true
 export DEBUG=@cypress/grep
 
-# Capture the tags from the placeholder (replaced by run.sh)
+# Capture the tags from the placeholder (replaced by playbook setup-test-env.yml)
 TAGS="CYPRESSTAGS"
 
 # Normalize tags (strip @bypass, handle spaces)
@@ -33,7 +33,7 @@ export CYPRESS_grepTags="$TAGS"
 # from setupNodeEvents are ignored.
 SPEC_ARG=()
 if [ -n "$TAGS" ]; then
-	FILTERED_SPECS=$(node cypress/jenkins/grep-filter.js)
+	FILTERED_SPECS=$(node --experimental-strip-types cypress/jenkins/grep-filter.ts)
 	if [ -n "$FILTERED_SPECS" ]; then
 		echo "grep-filter: will run --spec $FILTERED_SPECS"
 		SPEC_ARG=(--spec "$FILTERED_SPECS")
@@ -52,6 +52,13 @@ else
 fi
 EXIT_CODE=$?
 set -e
+
+# Merge JUnit XML reports into a single file for Jenkins
+echo "Merging JUnit reports..."
+if ! npx --no-install jrm results.xml "cypress/jenkins/reports/junit/junit-*"; then
+  echo "WARNING: jrm merge failed — individual junit-*.xml files may still be available"
+  ls -la cypress/jenkins/reports/junit/ 2>/dev/null || echo "  (report directory not found)"
+fi
 
 echo "CYPRESS EXIT CODE: $EXIT_CODE"
 exit $EXIT_CODE

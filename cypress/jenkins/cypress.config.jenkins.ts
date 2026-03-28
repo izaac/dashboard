@@ -108,7 +108,7 @@ export default defineConfig({
     reporterEnabled:                   `cypress-mochawesome-reporter, mocha-junit-reporter${ qaseEnabled ? ', cypress-qase-reporter' : '' }`,
     mochaJunitReporterReporterOptions: {
       mochaFile:      'cypress/jenkins/reports/junit/junit-[hash].xml',
-      toConsole:      true,
+      toConsole:      false,
       jenkinsMode:    true,
       includePending: true
     },
