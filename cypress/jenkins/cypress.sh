@@ -33,7 +33,7 @@ export CYPRESS_grepTags="$TAGS"
 # from setupNodeEvents are ignored.
 SPEC_ARG=()
 if [ -n "$TAGS" ]; then
-	FILTERED_SPECS=$(node cypress/jenkins/grep-filter.js)
+	FILTERED_SPECS=$(node --experimental-strip-types cypress/jenkins/grep-filter.ts)
 	if [ -n "$FILTERED_SPECS" ]; then
 		echo "grep-filter: will run --spec $FILTERED_SPECS"
 		SPEC_ARG=(--spec "$FILTERED_SPECS")

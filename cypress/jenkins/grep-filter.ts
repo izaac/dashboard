@@ -9,24 +9,32 @@
  * to stdout. If no grepTags are set or no specs match, outputs nothing.
  *
  * Usage:
- *   CYPRESS_grepTags="@onlyThis" node cypress/jenkins/grep-filter.js
+ *   CYPRESS_grepTags="@adminUser" node --experimental-strip-types cypress/jenkins/grep-filter.ts
  */
 
-/* eslint-disable no-console */
-const globby = require('globby');
-const fs = require('fs');
-const path = require('path');
-const { getTestNames } = require('find-test-names');
-const { parseGrep, shouldTestRun } = require('@cypress/grep/src/utils');
+/* eslint-disable no-console, @typescript-eslint/no-require-imports */
 
-const grepTags = process.env.CYPRESS_grepTags || process.env.GREP_TAGS;
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
+const globby = require('globby') as { sync: (patterns: string[], opts: { cwd: string; ignore: string[]; absolute: boolean }) => string[] };
+const { getTestNames } = require('find-test-names') as { getTestNames: (text: string) => { tests: Array<{ tags: string[] }> } };
+const { parseGrep, shouldTestRun } = require('@cypress/grep/src/utils') as {
+  parseGrep: (title: string | null, tags: string) => unknown;
+  shouldTestRun: (parsed: unknown, title: string | null, tags: string[]) => boolean;
+};
+
+const grepTags: string | undefined = process.env.CYPRESS_grepTags || process.env.GREP_TAGS;
 
 if (!grepTags) {
   // No tags specified — run all specs (output nothing so cypress.sh skips --spec)
   process.exit(0);
 }
 
-const testDirs = [
+const testDirs: string[] = [
   'cypress/e2e/tests/priority/**/*.spec.ts',
   'cypress/e2e/tests/components/**/*.spec.ts',
   'cypress/e2e/tests/setup/**/*.spec.ts',
@@ -34,12 +42,12 @@ const testDirs = [
   'cypress/e2e/tests/navigation/**/*.spec.ts',
   'cypress/e2e/tests/global-ui/**/*.spec.ts',
   'cypress/e2e/tests/features/**/*.spec.ts',
-  'cypress/e2e/tests/extensions/**/*.spec.ts'
+  'cypress/e2e/tests/extensions/**/*.spec.ts',
 ];
 
-const cwd = process.cwd();
+const cwd: string = process.cwd();
 
-const specFiles = globby.sync(testDirs, {
+const specFiles: string[] = globby.sync(testDirs, {
   cwd,
   ignore:   ['*.hot-update.js'],
   absolute: true,
@@ -47,13 +55,13 @@ const specFiles = globby.sync(testDirs, {
 
 const parsedGrep = parseGrep(null, grepTags);
 
-const matched = specFiles.filter((specFile) => {
+const matched: string[] = specFiles.filter((specFile: string) => {
   try {
     const text = fs.readFileSync(specFile, { encoding: 'utf8' });
     const testInfo = getTestNames(text);
 
     return testInfo.tests.some((info) => shouldTestRun(parsedGrep, null, info.tags));
-  } catch (err) {
+  } catch {
     // If we can't parse it, include it so Cypress can handle it at runtime
     console.error('grep-filter: could not parse %s — including it', specFile);
 
@@ -69,6 +77,6 @@ if (matched.length === 0) {
 console.error('grep-filter: matched %d spec(s) for tag(s) "%s"', matched.length, grepTags);
 
 // Output relative paths, comma-separated (Cypress --spec format)
-const relativePaths = matched.map((p) => path.relative(cwd, p));
+const relativePaths: string[] = matched.map((p) => path.relative(cwd, p));
 
 process.stdout.write(relativePaths.join(','));

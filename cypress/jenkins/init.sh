@@ -205,9 +205,9 @@ RANCHER_IMAGE_TAG_RESOLVED=""
 # Ansible verbosity: 0=normal, 1=-v, 2=-vv, etc. Override with ANSIBLE_VERBOSITY env var.
 ANSIBLE_VERBOSITY="${ANSIBLE_VERBOSITY:-0}"
 export ANSIBLE_NOCOWS=1
-ANSIBLE_VERBOSE_FLAG=""
+ANSIBLE_VERBOSE_FLAGS=()
 if [[ "${ANSIBLE_VERBOSITY}" -gt 0 ]]; then
-  ANSIBLE_VERBOSE_FLAG="-$(printf 'v%.0s' $(seq 1 "${ANSIBLE_VERBOSITY}"))"
+  ANSIBLE_VERBOSE_FLAGS=("-$(printf 'v%.0s' $(seq 1 "${ANSIBLE_VERBOSITY}"))")
 fi
 
 JOB_TYPE="${JOB_TYPE:-recurring}"
@@ -448,7 +448,7 @@ EOF
       -i "${inventory}" \
       "${K3S_ANSIBLE_DIR}/k3s-playbook.yml" \
       --extra-vars "@${vars_file}" \
-      ${ANSIBLE_VERBOSE_FLAG}
+      "${ANSIBLE_VERBOSE_FLAGS[@]}"
 
   echo "[init] k3s installed. Kubeconfig: ${OUTPUTS_DIR}/kubeconfig-rancher.yaml"
 
@@ -474,7 +474,7 @@ EOF
     ansible-playbook \
       "${RANCHER_ANSIBLE_DIR}/rancher-playbook.yml" \
       --extra-vars "@${rancher_vars}" \
-      ${ANSIBLE_VERBOSE_FLAG}
+      "${ANSIBLE_VERBOSE_FLAGS[@]}"
 
   echo "[init] Rancher deployed at https://${RANCHER_HOST}"
 }
@@ -532,7 +532,7 @@ EOF
         -i "${import_inventory}" \
         "${K3S_ANSIBLE_DIR}/k3s-playbook.yml" \
         --extra-vars "@${import_vars}" \
-        ${ANSIBLE_VERBOSE_FLAG}
+        "${ANSIBLE_VERBOSE_FLAGS[@]}"
 
     echo "[init] Import cluster ready."
   ) &
