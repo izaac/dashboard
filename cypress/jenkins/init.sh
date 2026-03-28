@@ -247,6 +247,7 @@ run_playbook() {
 # Destroy (called with: init.sh destroy)
 ###############################################################################
 destroy() {
+  export PATH="${HOME}/.local/bin:${PATH}"
   clone_qa_infra
 
   if [[ ! -f "${PLAYBOOK_DIR}/vars.yaml" ]]; then
