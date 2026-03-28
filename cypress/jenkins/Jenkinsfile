@@ -27,7 +27,7 @@ node('harvester-vpn-1') {
                         string(credentialsId: 'UI_SLACK_BOT_TOKEN', variable: 'UI_SLACK_BOT_TOKEN'),
                         string(credentialsId: 'UI_SLACK_CHANNEL', variable: 'UI_SLACK_CHANNEL')
                         ]) {
-        withEnv(paramsMap + ['TERM=xterm']) {
+        withEnv(paramsMap) {
             try {
               stage('Pre-Clean') {
                 sh """#!/bin/bash

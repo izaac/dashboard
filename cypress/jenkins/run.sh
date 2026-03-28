@@ -163,7 +163,7 @@ fi
 if [ "${RANCHER_TYPE:-existing}" = "existing" ]; then
 	wait_for_dashboard_ui "${RANCHER_HOST:-}"
 	build_image "${BRANCH:-${DASHBOARD_BRANCH:-master}}"  # TODO: remove DASHBOARD_BRANCH fallback after job YAML update
-	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -e FORCE_COLOR=3 -e TERM=xterm-256color -t \
+	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -t \
 		-v "${HOME}":/e2e \
 		-w /e2e dashboard-test || exit_code=$?
 elif [ "${RANCHER_TYPE:-existing}" = "recurring" ]; then
@@ -176,7 +176,7 @@ elif [ "${RANCHER_TYPE:-existing}" = "recurring" ]; then
 		echo TEST_USERNAME="standard_user" >>"${HOME}/.env"
 		;;
 	esac
-	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -e FORCE_COLOR=3 -e TERM=xterm-256color -t \
+	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -t \
 		-v "${HOME}":/e2e \
 		-w /e2e dashboard-test || exit_code=$?
 fi
