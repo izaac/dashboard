@@ -13,9 +13,6 @@ YARN_VERSION="${YARN_VERSION:-1.22.22}"
 CYPRESS_VERSION="${CYPRESS_VERSION:-11.1.0}"
 CHROME_VERSION="${CHROME_VERSION:-}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-v1.29.8}"
-NODE_PATH="${PWD}/nodejs"
-CYPRESS_CONTAINER_NAME="${CYPRESS_CONTAINER_NAME:-cye2e}"
-RANCHER_CONTAINER_NAME="${RANCHER_CONTAINER_NAME:-rancher}"
 GITHUB_URL="https://github.com/"
 DASHBOARD_REPO="${DASHBOARD_REPO:-rancher/dashboard}"
 
@@ -92,6 +89,7 @@ build_image() {
 	npm install -g yarn@"${YARN_VERSION}"
 	yarn config set ignore-engines true --silent
 
+	yarn cache clean 2>/dev/null || true
 	yarn install --frozen-lockfile
 
 	# Debugging node_modules
@@ -125,35 +123,14 @@ build_image() {
 
 rancher_init() {
 	RANCHER_HOST=$1
-	SERVER_URL="https://$2"
 	new_password="$3"
 
-	echo "[rancher_init] Logging in as admin with default password..."
+	echo "[rancher_init] Logging in as admin..."
 	rancher_token=$(curl -s -k -X POST "https://${RANCHER_HOST}/v3-public/localProviders/local?action=login" \
 		-H "Content-Type: application/json" \
-		-d "{\"username\":\"admin\",\"password\": \"password\"}" | grep -o '"token":"[^"]*' | grep -o '[^"]*$')
+		-d "{\"username\":\"admin\",\"password\": \"${new_password}\"}" | grep -o '"token":"[^"]*' | grep -o '[^"]*$')
 	echo "[rancher_init] token obtained: ${rancher_token:+yes}"
 
-	PASSWORD_URL=$(curl -s -k -X GET "https://${RANCHER_HOST}/v3/users?username=admin" \
-		-H "Content-Type: application/json" \
-		-H "Authorization: Bearer ${rancher_token}" | grep -o '"setpassword":"[^"]*' | grep -o '[^"]*$')
-	echo "[rancher_init] password URL: ${PASSWORD_URL}"
-
-	PASSWORD_PAYLOAD="{\"newPassword\": \"${new_password}\"}"
-	echo "[rancher_init] Setting admin password..."
-	curl -s -k -X POST "${PASSWORD_URL}" \
-		-H "Content-Type: application/json" \
-		-H "Authorization: Bearer ${rancher_token}" \
-		-d "${PASSWORD_PAYLOAD}"
-
-	echo ""
-	echo "[rancher_init] Setting server-url to ${SERVER_URL}..."
-	curl -s -k -X PUT "https://${RANCHER_HOST}/v3/settings/server-url" \
-		-H "Authorization: Bearer ${rancher_token}" \
-		-H 'Content-Type: application/json' \
-		--data-binary "{\"name\": \"server-url\", \"value\":\"${SERVER_URL}\"}"
-
-	echo ""
 	echo "[rancher_init] Creating standard_user with password from RANCHER_PASSWORD=${RANCHER_PASSWORD:+[set]}..."
 	create_user_response=$(curl -s -k -X POST "https://${RANCHER_HOST}/v3/users" \
 		-H "Authorization: Bearer ${rancher_token}" \
@@ -212,8 +189,8 @@ fi
 
 if [ "${RANCHER_TYPE:-existing}" = "existing" ]; then
 	wait_for_dashboard_ui "${RANCHER_HOST:-}"
-	build_image "${DASHBOARD_BRANCH:-master}"
-	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -t \
+	build_image "${BRANCH:-${DASHBOARD_BRANCH:-master}}"  # TODO: remove DASHBOARD_BRANCH fallback after job YAML update
+	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -e FORCE_COLOR=3 -e TERM=xterm-256color -t \
 		-v "${HOME}":/e2e \
 		-w /e2e dashboard-test || exit_code=$?
 elif [ "${RANCHER_TYPE:-existing}" = "recurring" ]; then
@@ -226,12 +203,12 @@ elif [ "${RANCHER_TYPE:-existing}" = "recurring" ]; then
 		echo TEST_USERNAME="standard_user" >>"${HOME}/.env"
 		;;
 	esac
-	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -t \
+	docker run --rm "${DOCKER_NAME_ARG[@]}" --env-file "${HOME}/.env" -e NODE_PATH= -e FORCE_COLOR=3 -e TERM=xterm-256color -t \
 		-v "${HOME}":/e2e \
 		-w /e2e dashboard-test || exit_code=$?
 fi
 
-cd "${HOME}/dashboard" || exit 1
+cd "${HOME}/dashboard" || { echo "WARNING: ${HOME}/dashboard not found, skipping results merge"; exit ${exit_code}; }
 ./node_modules/.bin/jrm "${HOME}/dashboard/results.xml" "cypress/jenkins/reports/junit/junit-*" || true
 
 if [ -s "${HOME}/dashboard/results.xml" ]; then

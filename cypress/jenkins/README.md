@@ -1,122 +1,133 @@
-# UI Automation execution on Jenkins
+# Jenkins CI Pipeline
 
-## Infrastructure Configuration
+This directory contains the Jenkins pipeline that runs Rancher Dashboard E2E tests.
+It automatically spins up AWS infrastructure, installs Rancher, and runs Cypress
+tests against it. When the tests finish (pass or fail), everything is torn down.
 
-The configuration is handled by the [init.sh](./init.sh) script in this repository.
+## How it works
 
-Basically what it does is a setup of a Linux node at a user-level of the software needed to execute the execution script located in the Dashboard tests [Corral Package](https://github.com/rancherlabs/corral-packages).
+The pipeline flows through three scripts:
 
-It configures a `WORKSPACE` folder in the *PATH* to add the necessary binaries.
+```
+Jenkinsfile  →  init.sh  →  run.sh  →  cypress.sh (inside Docker)
+```
 
-In Jenkins executors `WORKSPACE` is a predefined variable to a temporary folder in the *jenkins* user home.
+1. **`Jenkinsfile`** kicks things off in Jenkins — checks out the repo, runs init.sh,
+   collects results, and handles cleanup.
 
-- Golang - To build the corral package images.
-- Corral - For executng the corral package to build the remote Node for the tests
-- yq - For updating the corral package configuration values
+2. **`init.sh`** does the heavy lifting — installs any missing tools (tofu, ansible,
+   kubectl, helm), spins up EC2 instances with OpenTofu, installs k3s clusters with
+   Ansible, and deploys Rancher via Helm. When infrastructure is ready, it calls run.sh.
 
-If the `JOB_TYPE` is `recurring` that will make use of the `rancher` package to spin up a Rancher server for the dashboards tests to run on it.
+3. **`run.sh`** takes over from there — creates a `standard_user` in Rancher (for
+   standard-user tests), clones the correct dashboard branch, builds a Docker image
+   with Cypress and Chrome, and runs the tests.
 
-## Corral configuration
+4. **`cypress.sh`** is the entrypoint inside the Docker container — it filters test
+   specs by tags and runs Cypress.
 
-The initialization script makes use of the `corral config vars` option to set the dashboard tests corral package values.
+## What gets provisioned
 
-The goal is to have logic in the script for configuring both a Rancher instance and the Dashboard tests node that runs:
+When `JOB_TYPE=recurring` (the default), three things are created **in parallel**:
 
- `Dashboard tests node -> Rancher setup`
+- **Rancher Server** — a 3-node k3s HA cluster with Rancher installed via Helm.
+  Gets a real DNS name under your Route53 zone.
+- **Import Cluster** — a single-node k3s cluster used by tests that import
+  an existing cluster into Rancher.
+- **Custom Node** — a bare EC2 instance (no k3s) used by tests that create
+  custom clusters through the Rancher UI.
 
-## Run locally - needs remote aws provider
+When `JOB_TYPE=existing`, it skips Rancher provisioning entirely and points
+tests at an already-running Rancher instance (set via `RANCHER_HOST`).
 
-It is possible to run this locally or in a remove Linux instance.
+## All the files
 
-There's however required environment variables set for configuring the script, download the binary dependencies and execute corral.
+| File | What it does |
+|------|-------------|
+| `Jenkinsfile` | Pipeline stages — checkout, run tests, grab results, cleanup |
+| `init.sh` | Tool installation, infrastructure provisioning, calls run.sh |
+| `run.sh` | Rancher user setup, dashboard clone, Docker build, test execution |
+| `configure.sh` | Generates the `~/.env` file passed into the Docker container |
+| `Dockerfile.ci` | Docker image — Cypress + Chrome + kubectl + kubeconfig |
+| `cypress.sh` | Runs Cypress inside the container with tag-based spec filtering |
+| `cypress.config.jenkins.ts` | Cypress config tuned for CI (retries, reporters, etc.) |
+| `grep-filter.js` | Node script that pre-filters spec files matching grep tags |
+| `utils.sh` | Shared shell helpers (tag normalization, etc.) |
+| `slack-notification.sh` | Posts test results to Slack when builds fail |
 
-This design is mainly due to how the Jenkins Jobs manage the configuration using environment variables.
+## Job types at a glance
 
-Some environment have default values thus making them optional others like the following are required:
+| `JOB_TYPE` | `CREATE_INITIAL_CLUSTERS` | What happens |
+|------------|--------------------------|--------------|
+| `recurring` | `yes` | Full provisioning — Rancher + test clusters |
+| `recurring` | `no` | Rancher only, no import/custom clusters |
+| `existing` | `yes` | Uses your Rancher, creates test clusters |
+| `existing` | `no` | Uses your Rancher, no clusters — just runs tests |
 
-- `WORKSPACE`
-  - This is defined in Jenkins but it isn't a system variable on Linux.
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION`
-- `AWS_ZONE_ID`
-- `AWS_DOMAIN`
-- `AWS_AMI`
-- `AWS_SECURITY_GROUP`
-- `AWS_SUBNET`
-- `AWS_VPC`
-- `AWS_VOLUME_TYPE`
-- `AWS_VOLUME_IOPS`
-- `AWS_SSH_USER`
-- `AWS_INSTANCE_TYPE`
-- `RANCHER_TYPE`
-  - This var defines the logic of how to execute the tests by the corral package.
-- `CYPRESS_TAGS`
+## Tools installed automatically
 
-*For more variables or variables updates take a look at the [init.sh](./init.sh) script.*
+You don't need to pre-install anything on the Jenkins executor beyond Docker and git.
+`init.sh` downloads everything else with SHA256 checksum verification:
 
-Folder structure:
+| Tool | Pinned version | Used for |
+|------|---------------|----------|
+| OpenTofu | 1.11.5 | Creating EC2 instances, DNS records |
+| uv | 0.11.2 | Installing Ansible in an isolated environment |
+| Ansible | core < 2.17 | Running k3s and Rancher playbooks |
+| kubectl | v1.29.8 | Verifying cluster readiness |
+| Helm | 3.17.3 | Resolving Rancher chart versions |
 
-- `WORKSPACE`
-  - `corral-packages` - cloned repo folder.
-  - `dashboard` - cloned repo folder
-  - `bin` - folder with binaries and set in the `PATH`
+## Environment variables you need to set
 
-From `WORKSPACE`:
+These are **required** — typically configured as Jenkins credentials:
 
-`dashboard/cypress/jenkins/init.sh`
+| Variable | What it is |
+|----------|-----------|
+| `AWS_ACCESS_KEY_ID` | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
+| `AWS_AMI` | EC2 AMI ID (should be Ubuntu 20.04) |
+| `AWS_ROUTE53_ZONE` | Your Route53 DNS zone |
+| `AWS_VPC` | VPC ID where instances are launched |
+| `AWS_SUBNET` | Subnet ID within the VPC |
+| `AWS_SECURITY_GROUP` | Security group ID (needs ports 22, 80, 443, 6443 open) |
 
-The expected and default Dashboard corral package image path is:
+## Environment variables you can optionally set
 
-`${WORKSPACE}/corral-packages/dist/aws-dashboard-tests-t3a.xlarge`
+These all have sensible defaults — override them via Jenkins job parameters
+when you need something different:
 
-That is generated by `make` during the `init.sh` execution.
+| Variable | Default | What it controls |
+|----------|---------|-----------------|
+| `RANCHER_IMAGE_TAG` | `v2.13-head` | Which Rancher version to deploy |
+| `RANCHER_HELM_REPO` | `rancher-com-rc` | Helm chart source (prime, latest, alpha, etc.) |
+| `RANCHER_PASSWORD` | `password1234` | Password for admin and standard_user |
+| `BOOTSTRAP_PASSWORD` | `password` | Rancher's initial bootstrap password |
+| `K3S_KUBERNETES_VERSION` | `v1.30.0+k3s1` | K3s version for all clusters |
+| `SERVER_COUNT` | `3` | Number of nodes in the Rancher cluster |
+| `CYPRESS_TAGS` | `@adminUser` | Which test tags to run |
+| `JOB_TYPE` | `recurring` | `recurring` (provision everything) or `existing` |
+| `CREATE_INITIAL_CLUSTERS` | `yes` | Whether to create import/custom clusters |
+| `RANCHER_HOST` | *(auto-generated)* | Required when `JOB_TYPE=existing` |
+| `QA_INFRA_REPO` | `rancher/qa-infra-automation` | Infrastructure playbooks repo |
+| `QA_INFRA_BRANCH` | `main` | Branch of the infra repo |
+| `ANSIBLE_VERBOSITY` | `0` | Ansible output verbosity (0 = quiet, 4 = max) |
+| `CLEANUP` | `true` | Destroy infrastructure after the run |
+| `SLACK_NOTIFICATION` | `true` | Post results to Slack on failure |
+| `QASE_PROJECT` | `RM` | Qase project code for test reporting |
+| `QASE_REPORT` | `true` | Enable Qase test reporting |
 
-### Use run.sh from the corral package directly
+## Where things end up
 
-The main `run.sh` script has all the logic to directly run the tests without creating the remote AWS node. However that's not fully tested and some modifications might be required to make it work.
+During a run, generated files live in `~/.qa-infra/outputs/`:
 
-## CORRAL PACKAGE
+- `*.tfvars` — Terraform variable files for each cluster
+- `*-inventory.yml` — Ansible inventories
+- `kubeconfig-*.yaml` — Kubeconfigs for Rancher and import clusters
+- `id_rsa` / `id_rsa.pub` — Ephemeral SSH key (generated per run)
 
-The Dashboard Tests corral package basically create an `AWS` ephimeral node to execute the UI tests on a `cypress` docker container.
+Test results are written to:
 
-The Docker image used is the latest `factory` from the `cypress-io/cypress-docker-images` repository [folder](https://github.com/cypress-io/cypress-docker-images/tree/master/factory).
-That image can recieve arguments for `yarn`, `node`, `cypress` and browsers. This allows the Jenkins job to set these and run.
+- `~/dashboard/results.xml` — JUnit XML (consumed by Jenkins)
+- `~/dashboard/cypress/reports/html/` — HTML report (published in Jenkins)
 
-A [run.sh](https://github.com/izaac/corral-packages/blob/dashboard_tests_recurring/templates/dashboard-tests/overlay/tmp/run.sh) script is executed on the remote node during the node creation.
-
-The script has logic for three different environment configurations - `rancher_type`:
-
-- Execute the tests on an `existing` Rancher setup.
-- Execute the tests in a Rancher instance running along the tests in the `local` node.
-- Do `recurring` execution that on an `existing` ephimeral Rancher created by the automation for Jenkins.
-
-The corral package takes the configuration from the updated/edited YAML files for the `recurring` type and all the variables set by the `init.sh` script with `corral config vars`.
-
-For non recurring types it just make use of the `corral config vars`, as the YAML files are only used for the ephimeral automation Rancher node.
-
-The workflow in `run.sh` of the different `rancher_type`(s).
-
-### Existing
-
-- Install all node modules needed for cypress reporting on the `dashboard` cloned repo.
-- Utilize an existing `rancher_host` username and password.
-- With the username and password, execute a Docker instance with the UI tests
-- Generate jUnit and html reports.
-
-### Recurring
-
-- Install all node modules needed for cypress reporting on the `dashboard` cloned repo.
-- Grab the information of the ephemeral Rancher automation instance from `corral config vars`
-- With that information like the Rancher username and password, execute a Docker instance with the UI tests
-- Generate jUnit and html reports.
-
-### Local
-
-Similar to Drone without the remote reporting and this runs Rancher Docker container and the cypress container.
-This is less used in Jenkins and might be a good option for local testing.
-
-- Install all node modules needed for cypress reporting on the `dashboard` cloned repo.
-- Build UI assets and setup a Docker Rancher instance with them. (Similar to Drone).
-- Attach a second Docker container to the Rancher instance network and execute the UI tests in it.
-- Generate jUnit and html reports.
+Both are cleaned up by the Pre-Clean and Cleanup stages in the Jenkinsfile.
