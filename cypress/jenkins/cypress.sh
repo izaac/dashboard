@@ -20,7 +20,7 @@ export PERCY_LOGLEVEL=warn
 export PERCY_SKIP_UPDATE_CHECK=true
 export DEBUG=@cypress/grep
 
-# Capture the tags from the placeholder (replaced by run.sh)
+# Capture the tags from the placeholder (replaced by playbook setup-test-env.yml)
 TAGS="CYPRESSTAGS"
 
 # Normalize tags (strip @bypass, handle spaces)
