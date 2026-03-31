@@ -108,14 +108,14 @@ export default defineConfig({
     reporterEnabled:                   `cypress-mochawesome-reporter, mocha-junit-reporter${ qaseEnabled ? ', cypress-qase-reporter' : '' }`,
     mochaJunitReporterReporterOptions: {
       mochaFile:      'cypress/jenkins/reports/junit/junit-[hash].xml',
-      toConsole:      true,
+      toConsole:      false,
       jenkinsMode:    true,
       includePending: true
     },
     cypressMochawesomeReporterReporterOptions: { charts: false },
     cypressQaseReporterReporterOptions:        {
       mode:    qaseEnabled ? 'testops' : 'off',
-      debug:   true,
+      debug:   process.env.QASE_DEBUG === 'true',
       testops: {
         api:               { token: process.env.QASE_AUTOMATION_TOKEN || process.env.qase_automation_token },
         project:           process.env.QASE_PROJECT || process.env.qase_project || 'SANDBOX',
@@ -157,10 +157,13 @@ export default defineConfig({
               // eslint-disable-next-line camelcase
               const filtered = results.filter((r: { testops_id: number | number[] | null }) => r.testops_id !== null && r.testops_id !== undefined);
 
+              console.log(`[Qase] ${ spec.name }: ${ results.length } result(s), ${ filtered.length } with Qase ID${ filtered.length ? ` (${ filtered.map((r: { testops_id: number }) => r.testops_id).join(', ') })` : '' }`);
               fs.writeFileSync(qaseResultsPath, JSON.stringify(filtered));
             } catch (e) {
               console.error('Error filtering Qase results:', e);
             }
+          } else {
+            console.log(`[Qase] ${ spec.name }: no results file found`);
           }
 
           // afterSpecHook reads filtered results, uploads to Qase API, then clears the file
