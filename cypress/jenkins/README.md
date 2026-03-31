@@ -1,122 +1,67 @@
-# UI Automation execution on Jenkins
+# Jenkins CI Pipeline
 
-## Infrastructure Configuration
+Thin Jenkins wrapper for the Dashboard E2E test pipeline. The actual test
+infrastructure (Dockerfile, Cypress config, playbook) lives in the
+[qa-infra-automation](https://github.com/rancher/qa-infra-automation/tree/main/ansible/testing/dashboard-e2e)
+repo. This directory only contains what Jenkins needs to kick things off.
 
-The configuration is handled by the [init.sh](./init.sh) script in this repository.
+## Files
 
-Basically what it does is a setup of a Linux node at a user-level of the software needed to execute the execution script located in the Dashboard tests [Corral Package](https://github.com/rancherlabs/corral-packages).
+| File | What it does |
+|------|-------------|
+| `Jenkinsfile` | Pipeline stages — checkout, run tests, grab results, cleanup, Slack |
+| `Jenkinsfile_multi` | Matrix job — fans out across Rancher versions × K8s versions × tag sets |
+| `init.sh` | Installs prerequisites, clones qa-infra-automation, generates vars.yaml, runs playbook, runs Docker |
+| `slack-notification.sh` | Posts test results to Slack on failure |
 
-It configures a `WORKSPACE` folder in the *PATH* to add the necessary binaries.
+## How it works
 
-In Jenkins executors `WORKSPACE` is a predefined variable to a temporary folder in the *jenkins* user home.
+```
+Jenkinsfile → init.sh → ansible-playbook (provision + setup) → docker run (streaming)
+                      ↘ init.sh destroy → ansible-playbook --tags cleanup
+```
 
-- Golang - To build the corral package images.
-- Corral - For executng the corral package to build the remote Node for the tests
-- yq - For updating the corral package configuration values
+1. **Jenkinsfile** checks out this repo, runs `init.sh`, collects results, and
+   handles cleanup in a `finally` block.
 
-If the `JOB_TYPE` is `recurring` that will make use of the `rancher` package to spin up a Rancher server for the dashboards tests to run on it.
+2. **init.sh** installs tools (tofu, ansible, kubectl, helm) with SHA256
+   verification, clones qa-infra-automation, writes `vars.yaml` from the
+   `VARS_YAML_CONFIG` Jenkins text area, then:
+   - Runs the playbook with `--skip-tags test` (provision + setup)
+   - Runs `docker run` directly for real-time streaming with colors
+   - On destroy: runs the playbook with `--tags cleanup,never`
 
-## Corral configuration
+3. **The playbook** handles everything else — provisioning AWS infra, deploying
+   Rancher, cloning dashboard, building the Docker image. See the
+   [playbook README](https://github.com/rancher/qa-infra-automation/tree/main/ansible/testing/dashboard-e2e)
+   for configuration, stage tags, and standalone usage.
 
-The initialization script makes use of the `corral config vars` option to set the dashboard tests corral package values.
+## Configuration
 
-The goal is to have logic in the script for configuring both a Rancher instance and the Dashboard tests node that runs:
+All configuration is done via the `VARS_YAML_CONFIG` text area in Jenkins.
+This is a YAML block that becomes the playbook's `vars.yaml`. See
+[vars.yaml.example](https://github.com/rancher/qa-infra-automation/blob/main/ansible/testing/dashboard-e2e/vars.yaml.example)
+for all available options.
 
- `Dashboard tests node -> Rancher setup`
+Jenkins-level parameters (not in vars.yaml):
 
-## Run locally - needs remote aws provider
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `BRANCH` | `master` | Branch for Jenkinsfile and init.sh (not test code) |
+| `QA_INFRA_BRANCH` | `dashboard_tests` | Branch of qa-infra-automation to clone |
+| `CLEANUP` | `true` | Destroy infrastructure after the run (`false`/`no`/`0` to skip) |
+| `SLACK_NOTIFICATION` | `true` | Post to Slack on failure |
+| `ANSIBLE_VERBOSITY` | `0` | Ansible output verbosity (0–4) |
 
-It is possible to run this locally or in a remove Linux instance.
+## Tools installed automatically
 
-There's however required environment variables set for configuring the script, download the binary dependencies and execute corral.
+`init.sh` downloads pinned versions with SHA256 checksums. No pre-install
+needed beyond Docker and git on the Jenkins executor.
 
-This design is mainly due to how the Jenkins Jobs manage the configuration using environment variables.
-
-Some environment have default values thus making them optional others like the following are required:
-
-- `WORKSPACE`
-  - This is defined in Jenkins but it isn't a system variable on Linux.
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION`
-- `AWS_ZONE_ID`
-- `AWS_DOMAIN`
-- `AWS_AMI`
-- `AWS_SECURITY_GROUP`
-- `AWS_SUBNET`
-- `AWS_VPC`
-- `AWS_VOLUME_TYPE`
-- `AWS_VOLUME_IOPS`
-- `AWS_SSH_USER`
-- `AWS_INSTANCE_TYPE`
-- `RANCHER_TYPE`
-  - This var defines the logic of how to execute the tests by the corral package.
-- `CYPRESS_TAGS`
-
-*For more variables or variables updates take a look at the [init.sh](./init.sh) script.*
-
-Folder structure:
-
-- `WORKSPACE`
-  - `corral-packages` - cloned repo folder.
-  - `dashboard` - cloned repo folder
-  - `bin` - folder with binaries and set in the `PATH`
-
-From `WORKSPACE`:
-
-`dashboard/cypress/jenkins/init.sh`
-
-The expected and default Dashboard corral package image path is:
-
-`${WORKSPACE}/corral-packages/dist/aws-dashboard-tests-t3a.xlarge`
-
-That is generated by `make` during the `init.sh` execution.
-
-### Use run.sh from the corral package directly
-
-The main `run.sh` script has all the logic to directly run the tests without creating the remote AWS node. However that's not fully tested and some modifications might be required to make it work.
-
-## CORRAL PACKAGE
-
-The Dashboard Tests corral package basically create an `AWS` ephimeral node to execute the UI tests on a `cypress` docker container.
-
-The Docker image used is the latest `factory` from the `cypress-io/cypress-docker-images` repository [folder](https://github.com/cypress-io/cypress-docker-images/tree/master/factory).
-That image can recieve arguments for `yarn`, `node`, `cypress` and browsers. This allows the Jenkins job to set these and run.
-
-A [run.sh](https://github.com/izaac/corral-packages/blob/dashboard_tests_recurring/templates/dashboard-tests/overlay/tmp/run.sh) script is executed on the remote node during the node creation.
-
-The script has logic for three different environment configurations - `rancher_type`:
-
-- Execute the tests on an `existing` Rancher setup.
-- Execute the tests in a Rancher instance running along the tests in the `local` node.
-- Do `recurring` execution that on an `existing` ephimeral Rancher created by the automation for Jenkins.
-
-The corral package takes the configuration from the updated/edited YAML files for the `recurring` type and all the variables set by the `init.sh` script with `corral config vars`.
-
-For non recurring types it just make use of the `corral config vars`, as the YAML files are only used for the ephimeral automation Rancher node.
-
-The workflow in `run.sh` of the different `rancher_type`(s).
-
-### Existing
-
-- Install all node modules needed for cypress reporting on the `dashboard` cloned repo.
-- Utilize an existing `rancher_host` username and password.
-- With the username and password, execute a Docker instance with the UI tests
-- Generate jUnit and html reports.
-
-### Recurring
-
-- Install all node modules needed for cypress reporting on the `dashboard` cloned repo.
-- Grab the information of the ephemeral Rancher automation instance from `corral config vars`
-- With that information like the Rancher username and password, execute a Docker instance with the UI tests
-- Generate jUnit and html reports.
-
-### Local
-
-Similar to Drone without the remote reporting and this runs Rancher Docker container and the cypress container.
-This is less used in Jenkins and might be a good option for local testing.
-
-- Install all node modules needed for cypress reporting on the `dashboard` cloned repo.
-- Build UI assets and setup a Docker Rancher instance with them. (Similar to Drone).
-- Attach a second Docker container to the Rancher instance network and execute the UI tests in it.
-- Generate jUnit and html reports.
+| Tool | Version | Purpose |
+|------|---------|---------|
+| OpenTofu | 1.11.5 | AWS infrastructure provisioning |
+| uv | 0.11.2 | Ansible installer |
+| Ansible | core < 2.17 | Playbook execution (pinned for Python 3.8 target compat) |
+| kubectl | v1.29.8 | Cluster verification |
+| Helm | 3.17.3 | Chart version resolution |

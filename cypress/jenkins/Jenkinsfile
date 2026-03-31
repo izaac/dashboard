@@ -1,22 +1,13 @@
 #!groovy
+// Jenkinsfile — CI pipeline for Rancher Dashboard E2E tests
+//
+// Stages: Pre-Clean → Checkout → Run Tests → Grab Results → Clean → Report → Notify
 
 def upstream = !currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
 def buildtype = upstream ? 'RecurringRun' : 'AdHoc'
-def branch = 'master'
+def branch = "${env.BRANCH}" != 'null' && "${env.BRANCH}" != '' ? "${env.BRANCH}" : 'master'
 def testExecutionResult = null
 def testExitCode = null
-
-if ("${env.branch}" != 'null' && "${env.branch}" != '') {
-  branch = "${env.branch}"
-}
-
-if ("${env.CORRAL_PACKAGES_REPO}" != 'null' && "${env.CORRAL_PACKAGES_REPO}" != '') {
-      corralRepo = "${env.CORRAL_PACKAGES_REPO}"
-}
-
-if ("${env.CORRAL_PACKAGES_BRANCH}" != 'null' && "${env.CORRAL_PACKAGES_BRANCH}" != '') {
-      corralBranch = "${env.CORRAL_PACKAGES_BRANCH}"
-}
 
 node('harvester-vpn-1') {
   ansiColor('xterm') {
@@ -36,15 +27,11 @@ node('harvester-vpn-1') {
                         string(credentialsId: 'UI_SLACK_BOT_TOKEN', variable: 'UI_SLACK_BOT_TOKEN'),
                         string(credentialsId: 'UI_SLACK_CHANNEL', variable: 'UI_SLACK_CHANNEL')
                         ]) {
-        withEnv(paramsMap + ['TERM=xterm']) {
+        withEnv(paramsMap) {
             try {
               stage('Pre-Clean') {
                 sh """#!/bin/bash
                   set +x
-                  mv "\${HOME}/dashboard" "\${HOME}/dashboard.old.\$\$" 2>/dev/null || true
-                  rm -rf "\${HOME}/dashboard.old."* 2>/dev/null &
-                  rm -f "\${HOME}/.env" 2>/dev/null || true
-                  rm -rf "\${HOME}/.corral" 2>/dev/null || true
                   docker rm -f \$(docker ps -aq --filter ancestor=dashboard-test) 2>/dev/null || true
                   docker rmi -f dashboard-test 2>/dev/null || true
                 """
@@ -57,20 +44,7 @@ node('harvester-vpn-1') {
                             extensions: scm.extensions + [[$class: 'CleanCheckout']],
                             userRemoteConfigs: scm.userRemoteConfigs
                         ])
-                dir('./corral-packages') {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: "*/${corralBranch}"]],
-                        extensions: scm.extensions + [[$class: 'CleanCheckout']],
-                        userRemoteConfigs: [[url: 'https://github.com/' + corralRepo]]
-                    ])
-                    sh 'git --no-pager branch'
-                    def ciFilename = 'dashboard-tests.yaml'
-                    def ciConfigContents = env.CORRAL_PACKAGE_CONFIG
-                    if (ciConfigContents != null) {
-                        writeFile file: './packages/aws/' + ciFilename, text: ciConfigContents
-                    }
-                }
+                // init.sh clones qa-infra-automation at runtime
               }
               stage('Run Tests') {
                 testExitCode = sh(script: 'cypress/jenkins/init.sh', returnStatus: true)
@@ -84,32 +58,24 @@ node('harvester-vpn-1') {
               currentBuild.result = 'UNSTABLE'
             } finally {
               stage('Grab Results') {
-                // Safe to run even if init.sh failed
-                sh 'cp ${HOME}/dashboard/results.xml . || true'
-                sh 'mkdir -p html && cp -r ${HOME}/dashboard/cypress/reports/html/* html/ || true'
+                sh 'cp dashboard/results.xml . 2>/dev/null || true'
+                sh 'mkdir -p html && cp -r dashboard/cypress/reports/html/* html/ 2>/dev/null || true'
               }
-              if ("${env.CLEANUP}".toLowerCase() == 'true') {
+              // Always destroy infra unless CLEANUP is explicitly set to false/no/0
+              def skipCleanup = "${env.CLEANUP}".toLowerCase() in ['false', 'no', '0']
+              if (!skipCleanup) {
                 stage('Clean Test Environment') {
-                  sh """#!/bin/bash
-                    export PATH=\$PATH:${WORKSPACE}/bin
-                    source cypress/jenkins/utils.sh
-                    set +x
-                    corrals=\$( corral list | grep -v "NAME" | grep -v "-" | cut -d' ' -f 2 )
-                    for corral in \$corrals; do clean_corral delete \$corral; done
-                  """
+                  timeout(time: 15, unit: 'MINUTES') {
+                    sh """#!/bin/bash
+                      set +x
+                      bash cypress/jenkins/init.sh destroy || true
+                    """
+                  }
                 }
               }
               stage('Cleanup Executor') {
                 sh """#!/bin/bash
                   set +x
-                  # Remove credentials file
-                  rm -f "\${HOME}/.env" || true
-                  # Remove cloned dashboard (move-then-delete avoids NFS/overlayfs race)
-                  mv "\${HOME}/dashboard" "\${HOME}/dashboard.old.\$\$" 2>/dev/null || true
-                  rm -rf "\${HOME}/dashboard.old."* 2>/dev/null || true
-                  # Remove corral config to prevent stale vars leaking between runs
-                  rm -rf "\${HOME}/.corral" || true
-                  # Remove stale Docker containers and image
                   docker rm -f \$(docker ps -aq --filter ancestor=dashboard-test) 2>/dev/null || true
                   docker rmi -f dashboard-test 2>/dev/null || true
                 """
@@ -130,10 +96,9 @@ node('harvester-vpn-1') {
                     } else {
                         testExecutionResult = null
                     }
-                    publishHTML(target : [allowMissing: false,
+                    publishHTML(target : [allowMissing: true,
                       alwaysLinkToLastBuild: true,
                       keepAll: true,
-                      // The path is relative to ${WORKSPACE}
                       reportDir: 'html',
                       reportFiles: 'index.html',
                       reportName: 'html-report',
@@ -142,12 +107,9 @@ node('harvester-vpn-1') {
               }
               catch (err) {
                 echo 'Error in Test Report stage: ' + err
-                // Only set testExecutionResult if it's null and tests actually ran
-                // Check XML to determine if tests passed or failed, not just assume FAILURE
                 if (testExecutionResult == null && fileExists('results.xml')) {
                     def resultsContent = readFile('results.xml').trim()
                     if (resultsContent.contains('<testcase')) {
-                        // Tests ran - check if they failed or passed
                         if (resultsContent.contains('<failure')) {
                             testExecutionResult = 'FAILURE'
                         } else {
@@ -158,8 +120,6 @@ node('harvester-vpn-1') {
                 currentBuild.result = 'UNSTABLE'
               }
 
-              // test failure -> FAILURE (Slack: FAILED)
-              // pipeline/env failure -> UNSTABLE
               if (currentBuild.result == 'UNSTABLE' || testExecutionResult == 'FAILURE') {
                   if ("${env.SLACK_NOTIFICATION}".toLowerCase() != 'false') {
                       withEnv(["SLACK_BUILD_STATUS=${testExecutionResult == 'FAILURE' ? 'FAILURE' : 'UNSTABLE'}"]) {
