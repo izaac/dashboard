@@ -48,7 +48,7 @@ install_prerequisites() {
 
   # OpenTofu (statically linked Go binary)
   local installed_tofu
-  installed_tofu=$(tofu --version 2>/dev/null | head -1 | sed 's/OpenTofu v//')
+  installed_tofu=$(tofu --version 2>/dev/null | head -1 | sed 's/OpenTofu v//') || true
   if [[ "${installed_tofu}" != "${TOFU_VERSION}" ]]; then
     echo "[init] Installing OpenTofu ${TOFU_VERSION}..."
     local tofu_zip="tofu_${TOFU_VERSION}_linux_amd64.zip"
@@ -109,8 +109,8 @@ install_prerequisites() {
 
   # kubectl (statically linked Go binary)
   local installed_kubectl
-  installed_kubectl=$(kubectl version --client --short 2>/dev/null | sed -n 's/.*v\([0-9.]*\).*/\1/p')
-  installed_kubectl="${installed_kubectl:-$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' | sed 's/^v//')}"
+  installed_kubectl=$(kubectl version --client --short 2>/dev/null | sed -n 's/.*v\([0-9.]*\).*/\1/p') || true
+  installed_kubectl="${installed_kubectl:-$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' | sed 's/^v//' || true)}"
   if [[ "${installed_kubectl}" != "${KUBECTL_VERSION#v}" ]]; then
     echo "[init] Installing kubectl ${KUBECTL_VERSION}..."
     curl -fsSL -o /tmp/kubectl \
@@ -122,7 +122,7 @@ install_prerequisites() {
 
   # Helm (statically linked Go binary)
   local installed_helm
-  installed_helm=$(helm version --short 2>/dev/null | sed -n 's/v\([0-9.]*\).*/\1/p')
+  installed_helm=$(helm version --short 2>/dev/null | sed -n 's/v\([0-9.]*\).*/\1/p') || true
   if [[ "${installed_helm}" != "${HELM_VERSION}" ]]; then
     echo "[init] Installing Helm ${HELM_VERSION}..."
     local tarfile="helm-v${HELM_VERSION}-linux-amd64.tar.gz"
@@ -350,8 +350,8 @@ else
     fi
   done
 
-  # Run playbook: provision + setup (skip docker run — we do it below for streaming)
-  run_playbook "" "test-run"
+  # Run playbook: provision + setup (skip test — Docker run is below for streaming)
+  run_playbook "" "test"
 
   # Run Cypress in Docker directly for real-time log streaming in Jenkins
   echo "[init] Running Cypress tests (docker)..."
