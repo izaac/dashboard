@@ -12,7 +12,7 @@ def testExitCode = null
 node('harvester-vpn-1') {
   ansiColor('xterm') {
     withFolderProperties {
-      paramsMap = []
+      def paramsMap = []
       params.each {
         paramsMap << "$it.key=$it.value"
       }
@@ -41,7 +41,7 @@ node('harvester-vpn-1') {
                 checkout([
                             $class: 'GitSCM',
                             branches: [[name: "*/${branch}"]],
-                            extensions: scm.extensions + [[$class: 'CleanCheckout']],
+                            extensions: scm.extensions,
                             userRemoteConfigs: scm.userRemoteConfigs
                         ])
                 // init.sh clones qa-infra-automation at runtime
