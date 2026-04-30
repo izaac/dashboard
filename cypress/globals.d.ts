@@ -73,6 +73,10 @@ export interface CreateResourceNameOptions {
 
 declare global {
   namespace Cypress {
+    interface RancherVersion {
+      RancherPrime?: string;
+    }
+
     interface Chainable {
       setupWebSocket: any;
       hideElementBySelector(...selectors: string[]): Chainable<void>;
@@ -124,7 +128,7 @@ declare global {
       }): Chainable;
       applyDefaultTestTheme(): Chainable<any>;
       restoreProductDefaultTestTheme(): Chainable<any>;
-      getRancherVersion(): Chainable<any>;
+      getRancherVersion(): Chainable<RancherVersion>;
       getRancherResource(prefix: 'v3' | 'v1', resourceType: string, resourceId?: string, expectedStatusCode?: number): Chainable;
       setRancherResource(prefix: 'v3' | 'v1', resourceType: string, resourceId: string, body: any): Chainable;
       createRancherResource(prefix: 'v3' | 'v1', resourceType: string, body: any, failOnStatusCode?: boolean): Chainable;
