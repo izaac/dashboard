@@ -5,7 +5,7 @@ import { qase } from '@/cypress/support/qase';
 
 import { mockCapiMgmtCluster, mockCapiProvCluster } from '@/cypress/e2e/blueprints/manager/v2prov-capi-cluster-mocks';
 
-describe('Cluster List - v2 Provisioning CAPI Clusters', { tags: ['@manager', '@adminUser'] }, () => {
+describe('Cluster List - v2 Provisioning CAPI Clusters', { tags: ['@manager', '@adminUser', '@providerFix'] }, () => {
   const clusterList = new ClusterManagerListPagePo();
   const clusterName = 'mocked-capi';
 

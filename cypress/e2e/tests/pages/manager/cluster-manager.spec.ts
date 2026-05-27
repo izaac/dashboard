@@ -373,7 +373,7 @@ describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUs
     });
   });
 
-  describe('Imported', { tags: ['@jenkins', '@importedCluster', '@provisioning'] }, () => {
+  describe('Imported', { tags: ['@jenkins', '@importedCluster', '@provisioning', '@providerFix'] }, () => {
     const importClusterPage = new ClusterManagerImportGenericPagePo();
     const fqdn = 'fqdn';
     const cacert = 'cacert';
