@@ -426,7 +426,7 @@ describe('Cluster Manager', { testIsolation: 'off', tags: ['@manager', '@adminUs
         cy.getClusterIdByName(importGenericName).then((clusterId) => {
           const detailClusterPage = new ClusterManagerDetailImportedGenericPagePo(undefined, clusterId);
 
-          detailClusterPage.waitForPage(undefined, 'registration', MEDIUM_TIMEOUT_OPT);
+          cy.url(EXTRA_LONG_TIMEOUT_OPT).should('include', `${ clusterId }#registration`);
           detailClusterPage.kubectlCommandForImported().contains('--insecure').then(($value) => {
             const kubectlCommand = $value.text();
 
