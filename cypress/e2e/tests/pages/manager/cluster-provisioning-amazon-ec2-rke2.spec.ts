@@ -14,7 +14,7 @@ import describeSubnetsResponse from '@/cypress/e2e/blueprints/manager/describe-s
 import describeVpcsResponse from '@/cypress/e2e/blueprints/manager/describe-vpcs-response';
 
 // will only run this in jenkins pipeline where cloud credentials are stored
-describe('Deploy RKE2 cluster using node driver on Amazon EC2', { tags: ['@manager', '@adminUser', '@standardUser', '@jenkins', '@provisioning'] }, () => {
+describe('Deploy RKE2 cluster using node driver on Amazon EC2', { tags: ['@manager', '@adminUser', '@standardUser', '@jenkins', '@provisioning', '@ciStability2328'] }, () => {
   const clusterList = new ClusterManagerListPagePo();
   const loadingPo = new LoadingPo('.loading-indicator');
 
@@ -650,7 +650,7 @@ describe('Deploy RKE2 cluster using node driver on Amazon EC2', { tags: ['@manag
 
   after('clean up', () => {
     // delete cluster: needed here in case the delete test fails
-    cy.deleteRancherResource('v1', 'provisioning.cattle.io.clusters', clusterId, false);
+    cy.deleteClusterAndWait(clusterId);
     if (removeCloudCred) {
       //  delete cloud cred
       cy.deleteRancherResource('v3', 'cloudCredentials', cloudcredentialId);

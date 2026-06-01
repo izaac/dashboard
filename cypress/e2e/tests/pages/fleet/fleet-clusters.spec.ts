@@ -23,7 +23,7 @@ const branch = 'master';
 const paths = 'qa-test-apps/nginx-app';
 const downloadsFolder = Cypress.config('downloadsFolder');
 
-describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployment into the downstream cluster', { testIsolation: 'off', tags: ['@fleet', '@adminUser', '@jenkins'] }, () => {
+describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployment into the downstream cluster', { testIsolation: 'off', tags: ['@fleet', '@adminUser', '@jenkins', '@ciStability2328'] }, () => {
   const region = 'us-west-1';
   const namespace = 'fleet-default';
   let removeCluster = false;
@@ -88,6 +88,10 @@ describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployme
     clusterList.list().state(clusterName).contains('Active', VERY_LONG_TIMEOUT_OPT);
 
     // create gitrepo
+    // remove any leftover gitrepo from a previous attempt and wait until it is
+    // gone so retries don't 409 on an already existing or terminating resource
+    cy.deleteRancherResource('v1', `fleet.cattle.io.gitrepos/${ namespace }`, gitRepo, false);
+    cy.waitForRancherResource('v1', `fleet.cattle.io.gitrepos/${ namespace }`, gitRepo, (r: any) => r.status === 404, 20, { failOnStatusCode: false });
     cy.createRancherResource('v1', 'fleet.cattle.io.gitrepos', gitRepoTargetAllClustersRequest(namespace, gitRepo, gitRepoUrl, branch, paths)).then(() => {
       removeGitRepo = true;
     });
@@ -110,6 +114,10 @@ describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployme
     // check cluster state in fleet
     fleetClusterListPage.resourceTableDetails(clusterName, 1).contains('Not Ready', MEDIUM_TIMEOUT_OPT);
     fleetClusterListPage.resourceTableDetails(clusterName, 1).contains('Active', EXTRA_LONG_TIMEOUT_OPT);
+    // Fleet reports the cluster Active before it finishes reconciling the gitrepo
+    // bundles into the per cluster counters, so wait for the slowest counter
+    // (Bundles ready) to settle before asserting the exact counts below.
+    fleetClusterListPage.resourceTableDetails(clusterName, 5).contains('2', EXTRA_LONG_TIMEOUT_OPT);
     // check Git Repos ready
     fleetClusterListPage.resourceTableDetails(clusterName, 3).should('have.text', '1');
     // check Helm Ops ready
@@ -264,7 +272,11 @@ describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployme
 
   it('can assign cluster to different fleet workspaces', () => {
     // create workspace
-    cy.createRancherResource('v3', 'fleetworkspaces', `{"type":"fleetworkspace","name":"${ customWorkspace }","annotations":{},"labels":{}}`).then(() => {
+    // Idempotent create: a fleet workspace owns a backing namespace, so deleting
+    // it leaves the namespace terminating and an immediate recreate would 500.
+    // Instead tolerate a leftover from a previous attempt and reuse it.
+    cy.createRancherResource('v3', 'fleetworkspaces', `{"type":"fleetworkspace","name":"${ customWorkspace }","annotations":{},"labels":{}}`, false).then((resp: any) => {
+      expect(resp.status).to.be.oneOf([200, 201, 409]);
       removeWorkspace = true;
     });
 
@@ -341,8 +353,8 @@ describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployme
 
   it('cluster should be removed from fleet cluster list once deleted', () => {
     if (removeCluster) {
-      //  delete cluster
-      cy.deleteRancherResource('v1', `provisioning.cattle.io.clusters/${ namespace }`, clusterName);
+      //  delete cluster and wait for the linked management cluster to be removed
+      cy.deleteClusterAndWait(`${ namespace }/${ clusterName }`);
       removeCluster = false;
     }
 
@@ -357,8 +369,8 @@ describe('Fleet Clusters - bundle manifests are deployed from the BundleDeployme
 
   after('clean up', () => {
     if (removeCluster) {
-      // delete cluster
-      cy.deleteRancherResource('v1', `provisioning.cattle.io.clusters/${ namespace }`, clusterName, false);
+      // delete cluster and wait for the linked management cluster to be removed
+      cy.deleteClusterAndWait(`${ namespace }/${ clusterName }`);
     }
     if (removeGitRepo) {
       // delete gitrepo

@@ -1461,6 +1461,62 @@ Cypress.Commands.add('getClusterIdByName', (clusterName: string) => {
 });
 
 /**
+ * Delete a provisioning cluster and wait until Rancher fully removes both the
+ * v1 provisioning.cattle.io.cluster AND the linked v3 management.cattle.io.cluster.
+ *
+ * Waiting only on the v1 provisioning object leaves the v3 management cluster in
+ * a delete-pending state. The controller cascade may not finish before the next
+ * test starts, so orphaned management clusters keep getting reconciled by
+ * Rancher. This stresses the backend and pollutes the cluster list of
+ * subsequent tests (see rancher/qa-tasks#2328).
+ *
+ * @param provClusterId - Namespaced provisioning cluster id, e.g. `fleet-default/<name>`
+ * @param retries - Number of poll attempts for each wait (default 20)
+ */
+Cypress.Commands.add('deleteClusterAndWait', (provClusterId: string, retries = 20) => {
+  // Read the provisioning cluster first to discover the linked v3 management
+  // cluster id (status.clusterName). Tolerate a 404 in case the cluster was
+  // already removed by the test itself.
+  return cy.request({
+    method:  'GET',
+    url:     `${ Cypress.env('api') }/v1/provisioning.cattle.io.clusters/${ provClusterId }`,
+    headers: {
+      'x-api-csrf': token.value,
+      Accept:       'application/json'
+    },
+    failOnStatusCode: false,
+  }).then((resp) => {
+    const mgmtClusterId: string | undefined = resp?.body?.status?.clusterName;
+
+    // Delete the v1 provisioning cluster
+    cy.deleteRancherResource('v1', 'provisioning.cattle.io.clusters', provClusterId, false);
+
+    // Wait until the v1 provisioning cluster is fully removed
+    cy.waitForRancherResource(
+      'v1',
+      'provisioning.cattle.io.clusters',
+      provClusterId,
+      (r: any) => r.status === 404,
+      retries,
+      { failOnStatusCode: false }
+    );
+
+    // Wait until the linked v3 management cluster is also removed so Rancher
+    // stops reconciling an orphaned cluster between tests
+    if (mgmtClusterId) {
+      cy.waitForRancherResource(
+        'v3',
+        'clusters',
+        mgmtClusterId,
+        (r: any) => r.status === 404,
+        retries,
+        { failOnStatusCode: false }
+      );
+    }
+  });
+});
+
+/**
  * Cypress custom command: applyDefaultTestTheme
  *
  * Sets the Rancher UI to use the modern branding theme and applies the light (white) theme for the current user.

@@ -8,7 +8,7 @@ import TabbedPo from '@/cypress/e2e/po/components/tabbed.po';
 import { MEDIUM_TIMEOUT_OPT, VERY_LONG_TIMEOUT_OPT } from '@/cypress/support/utils/timeouts';
 
 // will only run this in jenkins pipeline where cloud credentials are stored
-describe('Deploy RKE2 cluster using node driver on Azure', { testIsolation: 'off', tags: ['@manager', '@adminUser', '@standardUser', '@jenkins', '@provisioning'] }, () => {
+describe('Deploy RKE2 cluster using node driver on Azure', { testIsolation: 'off', tags: ['@manager', '@adminUser', '@standardUser', '@jenkins', '@provisioning', '@ciStability2328'] }, () => {
   const clusterList = new ClusterManagerListPagePo();
   let removeCloudCred = false;
   let cloudcredentialId = '';
@@ -259,7 +259,7 @@ describe('Deploy RKE2 cluster using node driver on Azure', { testIsolation: 'off
 
   after('clean up', () => {
     // delete cluster: needed here in case the delete test fails
-    cy.deleteRancherResource('v1', 'provisioning.cattle.io.clusters', clusterId, false);
+    cy.deleteClusterAndWait(clusterId);
     if (removeCloudCred) {
       //  delete cloud cred
       cy.deleteRancherResource('v3', 'cloudCredentials', cloudcredentialId);

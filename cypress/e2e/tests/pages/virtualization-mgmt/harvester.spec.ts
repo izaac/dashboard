@@ -30,7 +30,7 @@ function harvesterExtensionCatalog(version: Cypress.RancherVersion) {
   return version.RancherPrime === 'true' ? HARVESTER_EXTENSION_CATALOG.prime : HARVESTER_EXTENSION_CATALOG.community;
 }
 
-describe('Harvester', { tags: ['@virtualizationMgmt', '@adminUser'] }, () => {
+describe('Harvester', { tags: ['@virtualizationMgmt', '@adminUser', '@ciStability2328'] }, () => {
   before(() => {
     cy.login();
 
@@ -128,8 +128,8 @@ describe('Harvester', { tags: ['@virtualizationMgmt', '@adminUser'] }, () => {
 
         // #14285: Should be able to edit cluster here
         harvesterPo.list().actionMenu(harvesterClusterName).getMenuItem('Edit Config').should('exist');
-        // delete cluster
-        cy.deleteRancherResource('v1', 'provisioning.cattle.io.clusters', `fleet-default/${ harvesterClusterId }`);
+        // delete cluster and wait for the linked management cluster to be removed
+        cy.deleteClusterAndWait(`fleet-default/${ harvesterClusterId }`);
       });
     });
   }));
