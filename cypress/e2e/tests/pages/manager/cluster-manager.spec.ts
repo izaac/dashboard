@@ -470,8 +470,10 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
 
         importClusterPage.create();
 
-        cy.wait('@importRequest').then((intercept) => {
-          expect(intercept.response.statusCode).to.eq(201);
+        cy.wait('@importRequest', { requestTimeout: LONG_TIMEOUT_OPT.timeout }).then((intercept) => {
+          // Fail fast with a clear error if the backend rejects the import,
+          // instead of waiting for a redirect that never comes.
+          expect(intercept.response?.statusCode, 'Cluster import POST status').to.eq(201);
           expect(intercept.request.body).to.deep.equal({
             type:           importType,
             agentEnvVars:   [],
@@ -485,12 +487,40 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
         cy.getClusterIdByName(importGenericName).then((clusterId) => {
           const detailClusterPage = new ClusterManagerDetailImportedGenericPagePo(undefined, clusterId);
 
-          cy.url(EXTRA_LONG_TIMEOUT_OPT).should('include', `${ clusterId }#registration`);
-          detailClusterPage.kubectlCommandForImported().contains('--insecure').then(($value) => {
+          // The import flow redirects to the cluster detail page with no URL
+          // fragment (pkg/imported/components/CruImported.vue done()). The
+          // `#registration` fragment is written later, as a side effect of the
+          // Tabbed component picking its default tab, and Tabbed only does that
+          // while no tab is active yet. The registration tab in turn only exists
+          // once the cluster registration token has resolved, which the detail
+          // page waits on asynchronously. If the token is slow, Tabbed settles on
+          // another tab first and the fragment is never written, so asserting on
+          // it cannot be fixed by a longer timeout.
+          //
+          // Wait for the detail page, then for the registration tab itself, and
+          // select it explicitly.
+          detailClusterPage.waitForPage(undefined, undefined, EXTRA_LONG_TIMEOUT_OPT);
+          detailClusterPage.registrationTab(EXTRA_LONG_TIMEOUT_OPT).click();
+          detailClusterPage.waitForPage(undefined, 'registration', MEDIUM_TIMEOUT_OPT);
+
+          detailClusterPage.kubectlCommandForImported(MEDIUM_TIMEOUT_OPT).contains('--insecure').then(($value) => {
             const kubectlCommand = $value.text();
 
             expect(kubectlCommand).to.contain('--insecure');
             cy.log(kubectlCommand);
+
+            // An imported cluster sits in a waiting state until the registration
+            // manifest is applied. Assert it here, before applying, where no agent
+            // can have connected yet. Asserting after the apply is racy: the agent
+            // can register before the list finishes rendering.
+            ClusterManagerListPagePo.navTo();
+            clusterList.waitForPage();
+            clusterList.list().state(importGenericName, EXTRA_LONG_TIMEOUT_OPT).should(($el) => {
+              const status = $el.text().trim();
+
+              expect(['Pending', 'Provisioning', 'Waiting']).to.include(status);
+            });
+
             cy.exec(kubectlCommand, { failOnNonZeroExit: false, timeout: RESTART_TIMEOUT_OPT.timeout }).then((result) => {
               cy.log(result.stderr);
               cy.log(result.stdout);
@@ -501,13 +531,7 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
 
         ClusterManagerListPagePo.navTo();
         clusterList.waitForPage();
-        clusterList.list().state(importGenericName).should('be.visible', EXTRA_LONG_TIMEOUT_OPT)
-          .and(($el) => {
-            const status = $el.text().trim();
-
-            expect(['Pending', 'Provisioning', 'Waiting']).to.include(status);
-          });
-        clusterList.list().state(importGenericName).contains('Active', EXTRA_LONG_TIMEOUT_OPT);
+        clusterList.list().state(importGenericName, EXTRA_LONG_TIMEOUT_OPT).contains('Active', EXTRA_LONG_TIMEOUT_OPT);
         // Issue #6836: Provider field on Imported clusters states "Imported" instead of cluster type
         clusterList.list().provider(importGenericName).should('contain.text', 'Imported');
         clusterList.list().providerSubType(importGenericName).should('contain.text', 'K3s');
@@ -518,6 +542,9 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
 
         clusterList.goTo();
         clusterList.checkIsCurrentPage();
+        // The masthead actions are part of the list component: clicking them
+        // before it has rendered is a known flake source.
+        clusterList.list().checkVisible(MEDIUM_TIMEOUT_OPT);
         clusterList.importCluster();
 
         importClusterPage.waitForPage('mode=import');
@@ -547,10 +574,15 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
           const editImportedClusterPage = new ClusterManagerEditImportedPagePo(undefined, 'fleet-default', clusterId);
 
           cy.intercept('GET', `${ USERS_BASE_URL }?*`).as('pageLoad');
-          clusterList.goTo();
-          clusterList.list().actionMenu(importGenericName).getMenuItem('Edit Config').click();
+          // navTo + waitForPage + row visible before touching the action menu,
+          // matching the RKE2 custom cluster tests: clicking the action menu on a
+          // still-rendering list is a known flake source.
+          ClusterManagerListPagePo.navTo();
+          clusterList.waitForPage();
+          clusterList.sortableTable().rowElementWithName(importGenericName, MEDIUM_TIMEOUT_OPT).should('be.visible').scrollIntoView();
+          clusterList.list().actionMenu(importGenericName).getMenuItem('Edit Config').click({ force: true });
 
-          editImportedClusterPage.waitForPage('mode=edit');
+          editImportedClusterPage.waitForPage('mode=edit', undefined, LONG_TIMEOUT_OPT);
 
           editImportedClusterPage.nameNsDescription().name().value().should('eq', importGenericName);
           cy.wait('@pageLoad');
@@ -584,12 +616,14 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
 
           editImportedClusterPage.save();
 
-          // We should be taken back to the list page if the save was successful
-          clusterList.waitForPage();
+          // We should be taken back to the list page if the save was successful.
+          // The save PUT + redirect can exceed the default timeout under load.
+          clusterList.waitForPage(undefined, undefined, LONG_TIMEOUT_OPT);
 
-          clusterList.list().actionMenu(importGenericName).getMenuItem('Edit Config').click();
+          clusterList.sortableTable().rowElementWithName(importGenericName, MEDIUM_TIMEOUT_OPT).should('be.visible').scrollIntoView();
+          clusterList.list().actionMenu(importGenericName).getMenuItem('Edit Config').click({ force: true });
 
-          editImportedClusterPage.waitForPage('mode=edit');
+          editImportedClusterPage.waitForPage('mode=edit', undefined, LONG_TIMEOUT_OPT);
           editImportedClusterPage.ace().fqdn().value().should('eq', fqdn );
           editImportedClusterPage.ace().caCerts().value().should('eq', cacert );
 
@@ -600,9 +634,12 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
       }));
 
       qase(1463, it('can delete cluster by bulk actions', () => {
-        clusterList.goTo();
+        ClusterManagerListPagePo.navTo();
+        clusterList.waitForPage();
         clusterList.list().checkVisible(MEDIUM_TIMEOUT_OPT);
-        clusterList.sortableTable().rowElementWithName(importGenericName).should('exist', MEDIUM_TIMEOUT_OPT);
+        // Timeouts belong on the command that yields the element; .should()
+        // ignores an options argument (it is read as the assertion message).
+        clusterList.sortableTable().rowElementWithName(importGenericName, MEDIUM_TIMEOUT_OPT).should('be.visible').scrollIntoView();
         clusterList.sortableTable().rowSelectCtlWithName(importGenericName).set();
         clusterList.sortableTable().bulkActionDropDownOpen();
         clusterList.sortableTable().bulkActionDropDownButton('Delete').click();
@@ -612,8 +649,10 @@ describe('Cluster Manager', { testIsolation: false, tags: ['@manager', '@adminUs
         promptRemove.confirm(importGenericName);
         promptRemove.remove();
 
-        clusterList.waitForPage();
-        clusterList.sortableTable().rowElementWithName(importGenericName).should('not.exist');
+        clusterList.waitForPage(undefined, undefined, LONG_TIMEOUT_OPT);
+        // Cluster removal is asynchronous, the row lingers while the backend
+        // finalizes the delete.
+        clusterList.sortableTable().rowElementWithName(importGenericName, EXTRA_LONG_TIMEOUT_OPT).should('not.exist');
       }));
     });
   });
