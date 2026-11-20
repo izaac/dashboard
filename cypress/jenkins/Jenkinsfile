@@ -36,7 +36,9 @@ def checkoutWithRetry(String what, Closure body) {
   }
 }
 
-timeout(time: 330, unit: 'MINUTES') {
+// TEMP(jenkins-no-timeout): Jenkins timeouts disabled for a test run.
+// Revert by deleting every line marked TEMP(jenkins-no-timeout).
+// timeout(time: 330, unit: 'MINUTES') {
 node('harvester-vpn-1') {
   ansiColor('xterm') {
     withFolderProperties {
@@ -56,7 +58,8 @@ node('harvester-vpn-1') {
                         string(credentialsId: 'UI_SLACK_CHANNEL', variable: 'UI_SLACK_CHANNEL')
                         ]) {
         withEnv(paramsMap) {
-          timeout(time: 300, unit: 'MINUTES') {
+// TEMP(jenkins-no-timeout)
+//          timeout(time: 300, unit: 'MINUTES') {
             try {
               stage('Pre-Clean') {
                 sh """#!/bin/bash
@@ -299,12 +302,14 @@ node('harvester-vpn-1') {
                 }
               }
               stage('Run Tests') {
-                timeout(time: 240, unit: 'MINUTES') {
+// TEMP(jenkins-no-timeout)
+//                timeout(time: 240, unit: 'MINUTES') {
                   testExitCode = sh(script: 'cypress/jenkins/init.sh', returnStatus: true)
                   if (testExitCode != 0) {
                     echo "init.sh exited with code ${testExitCode}"
                   }
-                }
+// TEMP(jenkins-no-timeout)
+//                }
               }
             } catch (err) {
               echo "Pipeline error: ${err}"
@@ -339,7 +344,8 @@ node('harvester-vpn-1') {
               if (!skipCleanup) {
                 try {
                   stage('Clean Test Environment') {
-                    timeout(time: 15, unit: 'MINUTES') {
+// TEMP(jenkins-no-timeout)
+//                    timeout(time: 15, unit: 'MINUTES') {
                       // A build that failed in Checkout has no init.sh to run
                       // and provisioned nothing to destroy.
                       if (fileExists('cypress/jenkins/init.sh')) {
@@ -350,7 +356,8 @@ node('harvester-vpn-1') {
                       } else {
                         echo 'No checkout to clean up: the build did not get past Checkout.'
                       }
-                    }
+// TEMP(jenkins-no-timeout)
+//                    }
                   }
                 } catch (destroyErr) {
                   echo "Destroy stage failed or timed out: ${destroyErr} — continuing with executor cleanup"
@@ -440,10 +447,12 @@ node('harvester-vpn-1') {
                 }
               }
             }
-          }
+// TEMP(jenkins-no-timeout)
+//          }
         }
       }
     }
   }
 }
-}
+// TEMP(jenkins-no-timeout)
+//}

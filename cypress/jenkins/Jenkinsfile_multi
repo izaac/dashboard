@@ -381,12 +381,11 @@ node {
             }
           }
 
-          // 30m above the child job's own outer timeout: this timer starts when
-          // the batch launches, before each child has an executor, so an equal
-          // cap expires first and skips result aggregation below.
-          timeout(time: 360, unit: 'MINUTES') {
+          // TEMP(jenkins-no-timeout)
+          // timeout(time: 360, unit: 'MINUTES') {
             parallel batchBranches
-          }
+          // TEMP(jenkins-no-timeout)
+          // }
         }
 
         // Take the worst child result. A child that failed to start at all is
