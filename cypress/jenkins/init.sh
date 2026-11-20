@@ -40,7 +40,7 @@ require_qa_infra() {
 # BuildKit cache record per layer that nothing on the agent reclaims.
 #
 # Bounded: a contended agent once printed one line and then nothing for ten
-# minutes, and the only other timeout is the 180 minute one around the whole
+# minutes, and the only other timeout is the 240 minute one around the whole
 # run. Quiet again now that the bound exists: the build is cached on almost
 # every run, so the fifty lines of layer output said nothing a stalled build
 # does not, and `timeout` is what turns a hang into a failure, not the noise.

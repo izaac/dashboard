@@ -381,7 +381,10 @@ node {
             }
           }
 
-          timeout(time: 270, unit: 'MINUTES') {
+          // 30m above the child job's own outer timeout: this timer starts when
+          // the batch launches, before each child has an executor, so an equal
+          // cap expires first and skips result aggregation below.
+          timeout(time: 360, unit: 'MINUTES') {
             parallel batchBranches
           }
         }

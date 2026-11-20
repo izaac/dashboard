@@ -36,7 +36,7 @@ def checkoutWithRetry(String what, Closure body) {
   }
 }
 
-timeout(time: 270, unit: 'MINUTES') {
+timeout(time: 330, unit: 'MINUTES') {
 node('harvester-vpn-1') {
   ansiColor('xterm') {
     withFolderProperties {
@@ -56,7 +56,7 @@ node('harvester-vpn-1') {
                         string(credentialsId: 'UI_SLACK_CHANNEL', variable: 'UI_SLACK_CHANNEL')
                         ]) {
         withEnv(paramsMap) {
-          timeout(time: 240, unit: 'MINUTES') {
+          timeout(time: 300, unit: 'MINUTES') {
             try {
               stage('Pre-Clean') {
                 sh """#!/bin/bash
@@ -299,7 +299,7 @@ node('harvester-vpn-1') {
                 }
               }
               stage('Run Tests') {
-                timeout(time: 180, unit: 'MINUTES') {
+                timeout(time: 240, unit: 'MINUTES') {
                   testExitCode = sh(script: 'cypress/jenkins/init.sh', returnStatus: true)
                   if (testExitCode != 0) {
                     echo "init.sh exited with code ${testExitCode}"

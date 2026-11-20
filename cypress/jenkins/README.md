@@ -62,8 +62,8 @@ Jenkins-level parameters (not in vars.yaml):
 
 | Feature | Detail |
 |---------|--------|
-| **Global timeout** | 240 min (4h) — kills zombie builds |
-| **Run Tests timeout** | 180 min (3h) — prevents hung Cypress |
+| **Global timeout** | 300 min (5h) — kills zombie builds |
+| **Run Tests timeout** | 240 min (4h) — prevents hung Cypress |
 | **Destroy timeout** | 15 min — wrapped in try/catch so cleanup always runs |
 | **Disk preflight** | Aborts if < 5 GB free on executor |
 | **Container isolation** | `BUILD_TAG` label on all containers; cleanup filters by label |
